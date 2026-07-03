@@ -1,0 +1,264 @@
+{
+  "group_titles": {
+    "return_support": "Retorno suporte/teste",
+    "return_developer": "Retorno desenvolvimento",
+    "paused": "Pausado",
+    "analysis_planning": "Analises para planejamento",
+    "planning": "Planejamento",
+    "approval": "Aguardando aprovacao",
+    "backlog_analysis": "Backlog (analises)",
+    "backlog": "Backlog",
+    "development": "Em andamento",
+    "waiting_peer_review": "Aguardando revisao em par",
+    "peer_review": "Revisao em par",
+    "review_control": "Aguardando revisao (neutro)",
+    "waiting_review": "Aguardando revisao",
+    "review": "Em revisao",
+    "cicd_homologacao": "CI/CD Homologacao",
+    "waiting_deploy": "Aguardando deploy",
+    "waiting_test": "Aguardando teste",
+    "testing": "Em teste",
+    "waiting_production": "Aguardando producao",
+    "production": "Em producao",
+    "direct_production": "Diretamente na producao",
+    "analysis_done": "Analises finalizadas",
+    "unknown": "Nao mapeado"
+  },
+  "list_groups": {
+    "return_support": ["RETORNO (SUP)"],
+    "return_developer": ["RETORNO (DEV)"],
+    "paused": ["PAUSADO"],
+    "analysis_planning": [
+      "ANALISES PARA PLANEJAMENTO",
+      "ANALISES PARA  PLANEJAMENTO",
+      "ANALISES PENDENTE PARA PLANEJAMENTO",
+      "ANALISES PENDENTE DE PLANEJAMENTO",
+      "ANALISES PENDENTE   PARA  PLANEJAMENTO."
+    ],
+    "planning": ["PLANEJAMENTO"],
+    "approval": ["AGUARDANDO APROVAÃ‡ÃƒO", "AGUADANDO APROVAÃ‡ÃƒO"],
+    "backlog_analysis": [
+      "BACKLOG (ANALISES)",
+      "BACKLOG (ANÃLISES)",
+      "BACKLOG ANALISES",
+      "BACKLOG ANÃLISES"
+    ],
+    "backlog": ["BACKLOG"],
+    "development": ["EM ANDAMENTO"],
+    "waiting_peer_review": [
+      "AGUARDANDO REVISAO EM PAR",
+      "AGUARDANDO REVISÃƒO EM PAR",
+      "AGUARDANDO RP"
+    ],
+    "peer_review": [
+      "REVISAO EM PAR",
+      "REVISÃƒO EM PAR",
+      "EM REVISAO EM PAR",
+      "EM REVISÃƒO EM PAR"
+    ],
+    "waiting_review": [
+      "AGUARDANDO REVISAO FORMAL",
+      "AGUARDANDO REVISÃƒO FORMAL"
+    ],
+    "review_control": [
+      "AGUARDANDO REVISÃƒO",
+      "AGUARDANDO REVISAO",
+      "AGUARDANDO REVISÃƒO (OPCIONAL)",
+      "AGUARDANDO REVISAO (OPCIONAL)",
+      "AGUARDANDO REVISÃƒO (Opcional)",
+      "AGUARDANDO REVISAO (Opcional)",
+      "AGUARDANDO REVISÃƒO (Opicional)",
+      "AGUARDANDO REVISAO (Opicional)"
+    ],
+    "review": [
+      "EM REVISÃƒO",
+      "EM REVISAO",
+      "EM REVISÃƒO (OPCIONAL)",
+      "EM REVISAO (OPCIONAL)",
+      "EM REVISÃƒO (Opicional)",
+      "EM REVISAO (Opicional)"
+    ],
+    "cicd_homologacao": [
+      "CI/CD HOMOLOGACAO",
+      "CI/CD HOMOLOGAÃ‡ÃƒO",
+      "CICD HOMOLOGACAO",
+      "CICD HOMOLOGAÃ‡ÃƒO"
+    ],
+    "waiting_deploy": ["AGUARDANDO DEPLOY"],
+    "waiting_test": [
+      "AGUARDANDO TESTE (OUTROS)",
+      "AGUARDANDO TESTE (LEGISLATIVO)",
+      "AGUARDANDO TESTE (EXECUTIVO)",
+      "AGUARDANDO TESTE (PAC)",
+      "AGUARDANDO TESTE (PED)"
+    ],
+    "testing": ["EM TESTE"],
+    "waiting_production": [
+      "AGUARDANDO PRODUÃ‡ÃƒO (OUTROS)",
+      "AGUARDANDO PRODUÃ‡ÃƒO (LEGISLATIVO)",
+      "AGUARDANDO PRODUÃ‡ÃƒO (EXECUTIVO)",
+      "AGUARDANDO PRODUÃ‡ÃƒO (PAC)",
+      "AGUARDANDO PRODUÃ‡ÃƒO (PED)"
+    ],
+    "production": ["EM PRODUÃ‡ÃƒO"],
+    "direct_production": ["DIRETAMENTE NA PRODUÃ‡ÃƒO"],
+    "analysis_done": ["ANALISES FINALIZADAS", "ANÃLISES FINALIZADAS"]
+  },
+  "attribution_rules": {
+    "return_developer": {
+      "field": "Desenvolvedor",
+      "role": "desenvolvedor"
+    },
+    "return_support": {
+      "field": "Tester",
+      "role": "tester/suporte"
+    },
+    "development": {
+      "field": "Desenvolvedor",
+      "role": "desenvolvedor"
+    },
+    "peer_review": {
+      "field": "Revisor em Par",
+      "role": "revisor em par"
+    },
+    "waiting_review": {
+      "field": "Revisor",
+      "role": "revisor"
+    },
+    "review": {
+      "field": "Revisor",
+      "role": "revisor"
+    },
+    "waiting_test": {
+      "field": "Tester",
+      "role": "tester"
+    },
+    "testing": {
+      "field": "Tester",
+      "role": "tester"
+    }
+  },
+  "delivery_groups": {
+    "problem": ["waiting_production"],
+    "analysis": ["analysis_done"]
+  },
+  "bottleneck_groups": [
+    "approval",
+    "backlog_analysis",
+    "backlog",
+    "waiting_review",
+    "waiting_deploy",
+    "cicd_homologacao",
+    "waiting_test",
+    "waiting_production"
+  ],
+  "required_custom_fields": {
+    "problem": ["Desenvolvedor", "NÃ­vel", "Sistema", "Solicitante"],
+    "analysis": ["Desenvolvedor", "NÃ­vel (Analise)", "Sistema", "Solicitante"]
+  },
+  "double_review_rule": {
+    "mandatory_min_level": 8,
+    "recommended_min_level": 5,
+    "peer_review_groups": ["peer_review"],
+    "formal_review_groups": ["review"]
+  },
+  "management_only_groups": {
+    "waiting_test": [
+      "AGUARDANDO TESTE (OUTROS)",
+      "AGUARDANDO TESTE (LEGISLATIVO)",
+      "AGUARDANDO TESTE (EXECUTIVO)",
+      "AGUARDANDO TESTE (PAC)",
+      "AGUARDANDO TESTE (PED)"
+    ],
+    "waiting_production": [
+      "AGUARDANDO PRODUÃ‡ÃƒO (OUTROS)",
+      "AGUARDANDO PRODUÃ‡ÃƒO (LEGISLATIVO)",
+      "AGUARDANDO PRODUÃ‡ÃƒO (EXECUTIVO)",
+      "AGUARDANDO PRODUÃ‡ÃƒO (PAC)",
+      "AGUARDANDO PRODUÃ‡ÃƒO (PED)"
+    ]
+  },
+  "quality_seal_thresholds": {
+    "gold_min_pct": 90,
+    "silver_min_pct": 75
+  },
+  "developer_work_groups": ["development", "return_developer"],
+  "pre_flow_groups": ["planning", "analysis_planning"],
+  "excluded_flow_groups": ["planning", "analysis_planning", "waiting_peer_review", "review_control"],
+  "pipeline_wait_groups": [
+    "approval",
+    "backlog",
+    "backlog_analysis",
+    "peer_review",
+    "review",
+    "cicd_homologacao",
+    "waiting_deploy",
+    "waiting_test",
+    "testing",
+    "waiting_production",
+    "paused",
+    "return_support"
+  ],
+  "sla_rules": {
+    "timezone": "America/Sao_Paulo",
+    "business_hours": {
+      "start": "08:00",
+      "end": "18:00",
+      "weekdays": [0, 1, 2, 3, 4]
+    },
+    "risk_threshold_pct": 80,
+    "stage_hours": {
+      "planning": 48,
+      "approval": 4,
+      "peer_review": 1.5,
+      "review": 4,
+      "waiting_deploy": 1,
+      "waiting_test": 9,
+      "testing": 2
+    },
+    "stage_calendar_hours": {
+      "waiting_production": 168
+    },
+    "development_hours_by_level": {
+      "1": 1,
+      "2": 2,
+      "3": 4,
+      "5": 12,
+      "8": 27,
+      "13": 44
+    },
+    "wip_only_groups": ["backlog", "backlog_analysis"],
+    "excluded_groups": ["waiting_peer_review", "review_control", "production", "direct_production", "analysis_done"]
+  },
+  "ignore_card_labels": ["CONTROLE", "NAO METRICAR", "NÃƒO METRICAR"],
+  "placeholder_card_titles": [
+    "PM CLIENTE / INFORMA O TITULO DO PROBLEMA",
+    "PM CLIENTE / INFORMA O TÃTULO DO PROBLEMA",
+    "ANALISE / INFORMAR OBJETIVO DA ANALISE",
+    "ANÃLISE / INFORMAR OBJETIVO DA ANÃLISE"
+  ],
+  "return_attribution": {
+    "tester_source_groups": ["testing"],
+    "reviewer_source_groups": [
+      "review",
+      "peer_review"
+    ]
+  },
+  "templates": [
+    {
+      "kind": "problem",
+      "title": "Problema",
+      "prefixes": ["PM CLIENTE", "PROBLEMA"],
+      "level_field": "NÃ­vel",
+      "done_groups": ["production", "direct_production"]
+    },
+    {
+      "kind": "analysis",
+      "title": "Analise",
+      "prefixes": ["ANALISE", "ANÃLISE", "ANALISES", "ANÃLISES"],
+      "level_field": "NÃ­vel (Analise)",
+      "done_groups": ["analysis_done", "production", "direct_production"]
+    }
+  ],
+  "default_done_groups": ["production", "direct_production", "analysis_done"]
+}

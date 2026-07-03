@@ -1,0 +1,49 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend Django",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}\\backend\\manage.py",
+      "args": [
+        "runserver",
+        "127.0.0.1:8000"
+      ],
+      "django": true,
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}\\.env",
+      "justMyCode": true
+    },
+    {
+      "name": "Frontend React",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}\\client\\node_modules\\vite\\bin\\vite.js",
+      "args": [
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5173",
+        "--strictPort"
+      ],
+      "cwd": "${workspaceFolder}\\client",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    }
+  ],
+  "compounds": [
+    {
+      "name": "INTGEST Web",
+      "configurations": [
+        "Backend Django",
+        "Frontend React"
+      ],
+      "preLaunchTask": "Liberar portas INTGEST",
+      "stopAll": true
+    }
+  ]
+}

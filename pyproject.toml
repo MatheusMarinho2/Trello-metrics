@@ -1,0 +1,15 @@
+[project]
+name = "trello-metrics"
+version = "0.1.0"
+description = "Metricas e relatorios para fluxo Trello INTGEST."
+requires-python = ">=3.11"
+dependencies = [
+  "reportlab>=4.2.0",
+  "matplotlib>=3.8.0",
+  "tzdata>=2024.1",
+  "Django>=5.2,<6.0",
+  "djangorestframework>=3.16",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
