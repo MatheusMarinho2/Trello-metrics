@@ -7,7 +7,7 @@ __pycache__/
 backend/db.sqlite3
 client/node_modules/
 client/dist/
-reports/
+/reports/
 data/
 *.pdf
 *.jsonl
