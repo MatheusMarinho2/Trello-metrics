@@ -1,0 +1,542 @@
+{
+  "labels": {
+    "name": "Nome",
+    "cards_created": "Cards criados",
+    "cards_delivered": "Cards entregues",
+    "cards_delivered_normal": "Entregues (normais)",
+    "cards_delivered_analysis": "Entregues (analise)",
+    "in_production": "Em producao",
+    "planning_ok_rate_pct": "Planejamento ok (%)",
+    "avg_planning_hours": "Tempo medio planejamento (h)",
+    "avg_planning_human": "Tempo medio planejamento",
+    "avg_approval_hours": "Tempo medio aprovacao (h)",
+    "avg_approval_human": "Tempo medio aprovacao",
+    "fibonacci_normal": "Pontos normais",
+    "fibonacci_analysis": "Pontos analise",
+    "fibonacci_total": "Pontos totais",
+    "avg_dev_human": "Tempo medio desenvolvimento",
+    "avg_dev_work_human": "Tempo medio trabalho dev",
+    "avg_pipeline_wait_human": "Tempo medio espera no fluxo",
+    "pipeline_wait_ratio_pct": "Proporcao de espera (%)",
+    "acceptance_rate_pct": "Aceitacao sem retorno (%)",
+    "rework_rate_pct": "Taxa de retrabalho (%)",
+    "quality_rate_pct": "Taxa de qualidade (%)",
+    "peer_review_returns": "Retornos revisao em par",
+    "tester_quality_returns": "Problemas pegos no teste",
+    "return_dev_count": "Retornos DEV penalizados",
+    "cards_with_rework": "Cards com retrabalho",
+    "peer_reviews_done": "Revisoes em par feitas",
+    "double_review_mandatory_total": "Dupla revisao obrigatoria",
+    "double_review_mandatory_violations": "Violacoes dupla revisao",
+    "cards_tested": "Cards testados",
+    "tests_started": "Testes iniciados",
+    "approved_first_pass": "Aprovados na 1a passagem",
+    "prevented_problems": "Problemas evitados",
+    "returned_dev_for_quality": "Problemas evitados",
+    "returned_dev": "Retornos ao DEV",
+    "returns_missing_reason": "Retornos sem motivo",
+    "retest_cycles_total": "Retestes",
+    "tester_return_rate_pct": "Taxa de retorno tester (%)",
+    "avg_wait_test_human": "Tempo medio aguardando teste",
+    "avg_testing_human": "Tempo medio em teste",
+    "reviews_done": "Revisoes feitas",
+    "approved": "Aprovadas",
+    "sent_back": "Devolvidas",
+    "escaped_to_test": "Escapes no teste",
+    "approval_rate_pct": "Taxa de aprovacao (%)",
+    "avg_review_human": "Tempo medio de revisao",
+    "top_developer": "Top desenvolvedor",
+    "cards_active": "Cards ativos",
+    "requester_delivered": "Entregues como solicitante",
+    "time_human": "Tempo total",
+    "avg_time_human": "Tempo medio",
+    "visits": "Visitas em processos",
+    "title": "Etapa",
+    "count": "Quantidade",
+    "avg_human": "Tempo medio",
+    "median_hours": "Mediana (h)",
+    "p85_hours": "P85 (h)",
+    "p95_hours": "P95 (h)",
+    "samples": "Amostras",
+    "sistema": "Sistema",
+    "card_name": "Card",
+    "status": "Status",
+    "usage_pct": "Uso do SLA (%)",
+    "limit_human": "Limite SLA",
+    "elapsed_human": "Tempo decorrido",
+    "sla_ok_rate_pct": "Conformidade SLA (%)",
+    "stage_checks": "Etapas avaliadas",
+    "breached_count": "Etapas estouradas",
+    "compliance_pct": "Cumprimento (%)",
+    "breached_cards": "Cards com estouro",
+    "cards_evaluated": "Cards avaliados",
+    "checks": "Avaliacoes",
+    "current_at_risk_count": "Em risco agora",
+    "current_breached_count": "Estouradas agora",
+    "avg_elapsed_human": "Media de tempo usado",
+    "worst_usage_pct": "Pior uso do SLA (%)",
+    "efficiency_pct": "Eficiencia de fluxo (%)",
+    "wip_total": "WIP atual",
+    "lead_time": "Lead time",
+    "cycle_time": "Cycle time",
+    "flow_efficiency": "Eficiencia de fluxo",
+    "little_law_predicted_lead_time_days": "Lead time previsto (Little)",
+    "compliant_count": "Cards conformes",
+    "completion_pct": "Campos completos (%)",
+    "mandatory_compliance_pct": "Conformidade dupla revisao (%)",
+    "quality_seal": "Selo de qualidade",
+    "total_return_dev_events": "Retornos DEV totais",
+    "cards_with_rework_count": "Cards com retrabalho",
+    "total_prevented_problems": "Problemas evitados",
+    "test_returns_missing_reason_count": "Retornos teste sem motivo",
+    "urgent_critical_pct": "Urgente/critica (%)",
+    "queue_jumps_count": "Inversoes de fila",
+    "failed_deployments": "Deploys com falha",
+    "deployments_evaluated": "Deploys avaliados",
+    "rate_pct": "Taxa (%)",
+    "developer_assignment_events": "Atribuicoes de dev",
+    "latency_hours": "Latencia (h)",
+    "optional": "Etapa opcional",
+    "issues": "Problemas detectados",
+    "missing": "Campos pendentes",
+    "prioridade": "Prioridade",
+    "list_name": "Lista atual",
+    "age_human": "Idade no WIP",
+    "p50_human": "P50 historico",
+    "risk_threshold_pct": "Limite de alerta (%)",
+    "desenvolvedor": "Desenvolvedor",
+    "developer": "Desenvolvedor",
+    "tester": "Tester",
+    "solicitante": "Solicitante",
+    "requester": "Solicitante",
+    "revisor": "Revisor",
+    "revisor_par": "Revisor em par",
+    "people_count": "Pessoas no recorte",
+    "total_cards_metricados": "Cards metricados",
+    "scope": "Escopo do relatorio",
+    "selected_metrics": "Metricas selecionadas",
+    "avg_planning_ok_pct": "Planejamento ok medio (%)"
+  },
+  "descriptions": {
+    "name": "Nome do colaborador conforme campo customizado ou membro do quadro Trello.",
+    "cards_created": "Quantidade de cards cuja data de criacao cai dentro do periodo analisado.",
+    "cards_delivered": "Cards entregues no periodo (movimento para lista de entrega concluida).",
+    "cards_delivered_normal": "Entregas de cards tipo tarefa normal (nao analise).",
+    "cards_delivered_analysis": "Entregas de cards classificados como analise.",
+    "in_production": "Entregues que passaram por producao ou sao cards tipo problema.",
+    "planning_ok_rate_pct": "Percentual de entregues sem retorno SUP: (entregues sem retorno SUP / total entregues) x 100.",
+    "avg_planning_hours": "Media de horas corridas na etapa de planejamento, considerando cards criados no periodo.",
+    "avg_planning_human": "Mesma media de planejamento em formato legivel (dias/horas).",
+    "avg_approval_hours": "Media de horas corridas na etapa de aprovacao para cards criados no periodo.",
+    "avg_approval_human": "Mesma media de aprovacao em formato legivel.",
+    "fibonacci_normal": "Soma dos pontos Fibonacci de cards normais entregues (somente desenvolvedor).",
+    "fibonacci_analysis": "Soma dos pontos Fibonacci de cards de analise entregues.",
+    "fibonacci_total": "Soma de pontos normais + analise.",
+    "avg_dev_human": "Media de horas de trabalho efetivo do desenvolvedor por card entregue.",
+    "avg_dev_work_human": "Media de horas em listas de desenvolvimento por card entregue.",
+    "avg_pipeline_wait_human": "Media de horas aguardando em filas do fluxo (fora desenvolvimento) por card entregue.",
+    "pipeline_wait_ratio_pct": "Proporcao de espera no fluxo: espera / (trabalho + espera) x 100.",
+    "acceptance_rate_pct": "Percentual de entregas sem nenhum retorno DEV penalizado: aceitos / entregues x 100.",
+    "rework_rate_pct": "Percentual de entregas com pelo menos um retorno DEV penalizado.",
+    "quality_rate_pct": "Complemento do retrabalho: 100% - taxa de retrabalho.",
+    "peer_review_returns": "Quantidade de vezes que a revisao em par devolveu o card ao desenvolvedor.",
+    "tester_quality_returns": "Retornos ao DEV atribuidos a problemas encontrados na fase de teste.",
+    "return_dev_count": "Total de retornos DEV que contam como penalidade de qualidade.",
+    "cards_with_rework": "Entregas com pelo menos um retorno DEV penalizado.",
+    "peer_reviews_done": "Revisoes em par realizadas pelo desenvolvedor no periodo.",
+    "double_review_mandatory_total": "Cards nivel 8/13 que exigem dupla revisao (par + formal).",
+    "double_review_mandatory_violations": "Cards obrigatorios entregues sem cumprir dupla revisao.",
+    "cards_tested": "Cards tipo problema entregues que passaram pela fase de teste.",
+    "approved_first_pass": "Cards testados aprovados sem retorno ao DEV na primeira passagem.",
+    "prevented_problems": "Retornos ao DEV por qualidade detectada na fase de teste (problemas evitados em producao).",
+    "returns_missing_reason": "Retornos de teste sem motivo registrado no card.",
+    "retest_cycles_total": "Total de ciclos de reteste apos retorno ao DEV.",
+    "tester_return_rate_pct": "Percentual de cards testados que tiveram retorno ao DEV.",
+    "avg_wait_test_human": "Media de horas aguardando teste por card testado.",
+    "avg_testing_human": "Media de horas em execucao de teste por card testado.",
+    "reviews_done": "Revisoes em par concluidas no periodo.",
+    "approved": "Revisoes aprovadas sem devolucao nem escape para teste.",
+    "sent_back": "Revisoes que devolveram o card ao desenvolvedor.",
+    "escaped_to_test": "Revisoes aprovadas, mas com problema detectado depois no teste.",
+    "approval_rate_pct": "Percentual de revisoes aprovadas: aprovadas / revisoes x 100.",
+    "avg_review_human": "Media de horas gastas em revisao em par por revisao feita.",
+    "top_developer": "Desenvolvedor com maior score no sistema (pontos x bonus de qualidade).",
+    "cards_active": "Cards com movimentacao no periodo ainda nao entregues.",
+    "requester_delivered": "Cards entregues no periodo em que a pessoa e solicitante.",
+    "time_human": "Soma de horas em todas as etapas do fluxo atribuidas ao papel.",
+    "avg_time_human": "Tempo medio por card considerando visitas ao processo.",
+    "visits": "Quantidade de passagens do card pelas listas do processo.",
+    "title": "Nome da lista ou estagio fundido do fluxo.",
+    "count": "Quantidade de cards ou ocorrencias.",
+    "avg_human": "Tempo medio de permanencia na etapa.",
+    "median_hours": "Mediana estatistica do tempo na etapa (horas corridas).",
+    "p85_hours": "Percentil 85 do tempo na etapa: 85% dos cards ficam abaixo deste valor.",
+    "p95_hours": "Percentil 95 do tempo na etapa.",
+    "samples": "Quantidade de cards usados no calculo estatistico.",
+    "sistema": "Sistema ou projeto associado ao card.",
+    "card_name": "Titulo do card no Trello.",
+    "status": "Situacao atual em relacao ao limite de SLA.",
+    "usage_pct": "Percentual do limite de SLA ja consumido.",
+    "limit_human": "Limite configurado de SLA para a etapa.",
+    "elapsed_human": "Tempo ja decorrido na etapa atual.",
+    "sla_ok_rate_pct": "Percentual de etapas dentro do limite de SLA para o desenvolvedor.",
+    "stage_checks": "Quantidade de passagens de cards por etapas com regra de SLA no periodo. Cada entrada/saida de etapa monitorada gera uma avaliacao.",
+    "breached_count": "Etapas em que o tempo decorrido superou o limite configurado de SLA.",
+    "compliance_pct": "Percentual de etapas dentro do prazo: (etapas ok / etapas avaliadas) x 100.",
+    "breached_cards": "Quantidade distinta de cards que tiveram ao menos uma etapa estourada.",
+    "cards_evaluated": "Quantidade distinta de cards com pelo menos uma etapa avaliada no periodo.",
+    "checks": "Numero de avaliacoes de SLA na etapa (uma por passagem do card).",
+    "current_at_risk_count": "Cards abertos agora com uso de SLA >= limite de alerta (padrao 80%) mas ainda dentro do prazo.",
+    "current_breached_count": "Cards abertos agora com SLA ja estourado na etapa atual.",
+    "avg_elapsed_human": "Tempo medio consumido na etapa entre as avaliacoes do periodo.",
+    "worst_usage_pct": "Maior percentual de uso do SLA entre os cards avaliados.",
+    "efficiency_pct": "Proporcao de tempo em trabalho vs fila: trabalho / (trabalho + espera) x 100.",
+    "wip_total": "Cards abertos no quadro que nao estao em listas terminais.",
+    "lead_time": "Tempo da criacao do card ate a entrega (horas corridas).",
+    "cycle_time": "Tempo da primeira entrada em Desenvolvimento ate a entrega.",
+    "flow_efficiency": "Mede quanto do tempo total foi trabalho ativo versus espera em filas.",
+    "little_law_predicted_lead_time_days": "Previsao de lead time pela Lei de Little: WIP / throughput diario.",
+    "compliant_count": "Cards entregues que respeitaram a ordem canonica do fluxo sem pulos ilegais.",
+    "completion_pct": "Percentual de cards na etapa com todos os campos obrigatorios preenchidos.",
+    "mandatory_compliance_pct": "Percentual de cards nivel 8/13 entregues com dupla revisao (par + formal) concluida.",
+    "quality_seal": "Classificacao do time baseada na taxa de qualidade: Ouro, Prata ou Atencao.",
+    "total_return_dev_events": "Soma de todos os retornos DEV penalizados no periodo.",
+    "cards_with_rework_count": "Entregas com ao menos um retorno DEV penalizado.",
+    "total_prevented_problems": "Retornos ao DEV detectados na fase de teste (problemas evitados em producao).",
+    "test_returns_missing_reason_count": "Retornos de teste sem motivo registrado no card.",
+    "urgent_critical_pct": "Percentual de cards ativos marcados como Urgente ou Critica.",
+    "queue_jumps_count": "Casos em que card de prioridade menor foi entregue antes de card de prioridade maior criado antes.",
+    "failed_deployments": "Deploys seguidos de card corretivo de alta prioridade dentro da janela configurada.",
+    "deployments_evaluated": "Total de movimentos para producao no periodo usados no calculo de falha.",
+    "rate_pct": "Taxa percentual do indicador sobre a base avaliada.",
+    "developer_assignment_events": "Vezes em que o campo Desenvolvedor foi preenchido apos a criacao do card.",
+    "latency_hours": "Horas entre criacao do card e atribuicao do desenvolvedor.",
+    "optional": "Indica se a etapa pode ser pulada sem violar o fluxo canonico.",
+    "issues": "Lista de violacoes: retrocesso, etapa core pulada ou ordem invalida.",
+    "missing": "Campos customizados obrigatorios ainda vazios na etapa.",
+    "prioridade": "Prioridade informada no card (Urgente, Critica, Alta, etc.).",
+    "list_name": "Lista do Trello onde o card esta agora.",
+    "age_human": "Tempo desde a ultima movimentacao relevante do card no WIP.",
+    "p50_human": "Mediana historica de permanencia na mesma etapa (referencia).",
+    "risk_threshold_pct": "Percentual do SLA a partir do qual o card entra em alerta em_risco.",
+    "people_count": "Quantidade de pessoas incluidas neste recorte do relatorio.",
+    "total_cards_metricados": "Cards considerados pelo motor no periodo (sem templates/controle).",
+    "scope": "Tipo de recorte aplicado ao relatorio gerado.",
+    "selected_metrics": "Blocos de metricas escolhidos na aba Metricas.",
+    "avg_planning_ok_pct": "Media da taxa de planejamento aprovado entre solicitantes."
+  },
+  "tables": {
+    "requesters": {
+      "description": "Consolida a atividade de cada solicitante no periodo: criacao, entrega e qualidade do planejamento.",
+      "columns": ["name", "cards_created", "cards_delivered", "in_production", "planning_ok_rate_pct", "avg_approval_human"]
+    },
+    "developers": {
+      "description": "Performance de entrega e qualidade por desenvolvedor. Pontos Fibonacci contam apenas cards atribuidos ao D-.",
+      "columns": ["name", "cards_delivered", "cards_delivered_normal", "cards_delivered_analysis", "fibonacci_normal", "fibonacci_analysis", "avg_dev_human", "acceptance_rate_pct", "rework_rate_pct", "tester_quality_returns", "peer_review_returns"]
+    },
+    "testers": {
+      "description": "Atuacao dos testers em cards tipo problema entregues no periodo.",
+      "columns": ["name", "cards_tested", "approved_first_pass", "prevented_problems", "returns_missing_reason", "retest_cycles_total"]
+    },
+    "reviewers": {
+      "description": "Revisoes em par realizadas no periodo, incluindo aprovacoes, devolucoes e escapes detectados no teste.",
+      "columns": ["name", "reviews_done", "approved", "sent_back", "escaped_to_test", "approval_rate_pct", "avg_review_human"]
+    },
+    "projects": {
+      "description": "Volume de entrega e pontos Fibonacci por sistema/projeto.",
+      "columns": ["name", "cards_delivered", "fibonacci_normal", "fibonacci_analysis", "top_developer"]
+    },
+    "collaborators": {
+      "description": "Visao consolidada por pessoa, somando todos os papeis (solicitante, dev, revisor, tester).",
+      "columns": ["name", "cards_active", "cards_delivered", "fibonacci_total", "time_human"]
+    },
+    "bottlenecks": {
+      "description": "Tempo medio de permanencia por estagio do fluxo. Identifica onde os cards mais demoram.",
+      "columns": ["title", "avg_human", "median_hours", "p85_hours", "p95_hours", "samples"]
+    },
+    "sla_developers": {
+      "description": "Conformidade de SLA agrupada por desenvolvedor responsavel no card.",
+      "columns": ["name", "cards_evaluated", "stage_checks", "breached_count", "breached_cards", "compliance_pct"]
+    },
+    "sla_by_stage": {
+      "description": "Cumprimento de SLA por etapa monitorada do fluxo.",
+      "columns": ["title", "limit_human", "checks", "breached_count", "compliance_pct", "avg_elapsed_human"]
+    },
+    "sla_team": {
+      "description": "Resumo consolidado de SLA do time no periodo.",
+      "columns": ["cards_evaluated", "stage_checks", "breached_count", "compliance_pct", "current_at_risk_count", "current_breached_count"]
+    },
+    "process_discipline": {
+      "description": "Disciplina de processo: ordem canonica do fluxo, campos obrigatorios e etapas puladas.",
+      "columns": ["cards_evaluated", "compliant_count", "compliance_pct"]
+    },
+    "flow_team": {
+      "description": "Metricas de fluxo do time: lead time, cycle time, eficiencia e WIP.",
+      "columns": ["lead_time", "cycle_time", "flow_efficiency", "wip_total", "little_law_predicted_lead_time_days"]
+    },
+    "dora": {
+      "description": "Indicadores DORA de entrega: frequencia, lead time de deploy, taxa de falha e tempo de restauracao.",
+      "columns": ["deployments_evaluated", "failed_deployments", "rate_pct"]
+    },
+    "quality_gates": {
+      "description": "Conformidade da regra de dupla revisao para cards de maior complexidade.",
+      "columns": ["mandatory_compliance_pct", "double_review_mandatory_total", "double_review_mandatory_violations"]
+    },
+    "team_summary": {
+      "description": "Resumo executivo de entrega e qualidade do time no periodo.",
+      "columns": ["cards_delivered", "quality_rate_pct", "rework_rate_pct", "total_prevented_problems", "quality_seal"]
+    }
+  },
+  "guides": {
+    "management_intro": {
+      "title": "Como ler o relatorio de gestao",
+      "description": "Este relatorio traduz o fluxo INTGEST em numeros acionaveis. Cada bloco abaixo explica o calculo metrica a metrica, com exemplo pratico. Use as regras de SLA e do fluxo canonico como referencia ao investigar desvios."
+    },
+    "sla": {
+      "title": "SLA — limites de tempo por etapa",
+      "description": "Cada etapa monitorada tem um limite configurado. Horas uteis aplicam-se a maioria das etapas; Aguardando producao usa dias corridos. Um card em_risco atingiu 80% do SLA; estourado ultrapassou o limite.",
+      "metrics": [
+        {
+          "key": "cards_evaluated",
+          "formula": "Contagem distinta de cards com ao menos uma etapa avaliada no periodo.",
+          "example": "12 cards passaram por Desenvolvimento ou Teste no mes => cards_evaluated = 12."
+        },
+        {
+          "key": "stage_checks",
+          "formula": "Total de avaliacoes de etapa (cada permanencia em etapa com SLA gera 1 check).",
+          "example": "1 card passou por Dev e Teste => 2 stage_checks para esse card."
+        },
+        {
+          "key": "breached_count",
+          "formula": "Checks em que elapsed_hours > limit_hours.",
+          "example": "Limite Dev = 48h, card ficou 52h => +1 breached_count."
+        },
+        {
+          "key": "compliance_pct",
+          "formula": "(stage_checks - breached_count) / stage_checks x 100.",
+          "example": "100 checks, 8 estourados => compliance_pct = 92%."
+        },
+        {
+          "key": "breached_cards",
+          "formula": "Cards distintos com ao menos 1 etapa estourada (visao por responsavel ou card).",
+          "example": "Dev Joao teve 3 cards, 2 estouraram SLA => breached_cards = 2."
+        },
+        {
+          "key": "current_at_risk_count",
+          "formula": "Cards abertos agora com usage_pct >= 80% e ainda dentro do limite.",
+          "example": "SLA 40h, card ha 34h na etapa (85%) => em_risco."
+        },
+        {
+          "key": "current_breached_count",
+          "formula": "Cards abertos agora com tempo ja acima do limite de SLA.",
+          "example": "SLA 24h, card ha 30h aguardando teste => estourado."
+        }
+      ]
+    },
+    "flow": {
+      "title": "Fluxo — lead time, cycle time e eficiencia",
+      "description": "Tempos em horas corridas (24h). Fila = listas de espera; Trabalho = listas de execucao (dev, revisao, teste).",
+      "metrics": [
+        {
+          "key": "lead_time",
+          "formula": "Data entrega - data criacao, para cards entregues no periodo.",
+          "example": "Criado dia 1, entregue dia 8 => lead time ~168h."
+        },
+        {
+          "key": "cycle_time",
+          "formula": "Data entrega - primeira entrada em Desenvolvimento.",
+          "example": "Entrou em Dev dia 3, entregue dia 8 => cycle time ~120h."
+        },
+        {
+          "key": "efficiency_pct",
+          "formula": "horas_trabalho / (horas_trabalho + horas_fila) x 100.",
+          "example": "40h trabalho + 60h fila => eficiencia = 40%."
+        },
+        {
+          "key": "wip_total",
+          "formula": "Cards abertos fora de listas terminais (Producao, Analise concluida).",
+          "example": "15 cards abertos em filas ativas => WIP = 15."
+        },
+        {
+          "key": "little_law_predicted_lead_time_days",
+          "formula": "WIP / (entregas_periodo / dias_periodo).",
+          "example": "WIP 10, 20 entregas em 20 dias => 10 dias previstos de lead time."
+        }
+      ]
+    },
+    "process_discipline": {
+      "title": "Regras do fluxo canonico",
+      "description": "Ordem esperada: Planejamento > Aprovacao > Backlog > Desenvolvimento > Revisao par > Revisao > Deploy > Teste > Producao. Retornos DEV/SUP e Pausa sao excecoes permitidas. Cards problema devem passar por Teste antes de Producao.",
+      "metrics": [
+        {
+          "key": "compliance_pct",
+          "formula": "cards_conformes / cards_avaliados x 100. Conforme = sem retrocesso ilegal nem pulo de etapa core.",
+          "example": "Card pulou Revisao formal => violacao, nao conta como conforme."
+        },
+        {
+          "key": "cards_evaluated",
+          "formula": "Entregues no periodo com historico de movimentos analisado.",
+          "example": "25 entregas no mes => 25 cards_evaluated."
+        },
+        {
+          "key": "completion_pct",
+          "formula": "Por etapa: cards com todos campos obrigatorios / cards na etapa x 100.",
+          "example": "Em Teste exige Tester: 8/10 com campo => 80%."
+        }
+      ]
+    },
+    "dora": {
+      "title": "DORA — entrega e estabilidade",
+      "description": "Deploy produtivo = entrada em Em producao ou Diretamente na producao. CFR e proxy por card CORRECAO em 7 dias — nao mede falha real de pipeline.",
+      "metrics": [
+        {
+          "key": "deployments_evaluated",
+          "formula": "Movimentos para Em producao ou Diretamente na producao (cards problema) no periodo.",
+          "example": "15 Em producao + 2 Diretamente na producao => 17 deploys."
+        },
+        {
+          "key": "standard_production",
+          "formula": "Deploys pelo fluxo normal (apos teste/homolog).",
+          "example": "15 cards em Em producao."
+        },
+        {
+          "key": "direct_production",
+          "formula": "Deploys pela coluna Diretamente na producao (hotfix, sem teste).",
+          "example": "2 cards hotfix — contam no DORA mas nao exigem etapas de teste na conformidade."
+        },
+        {
+          "key": "failed_deployments",
+          "formula": "Deploy seguido de card CORRECAO do mesmo sistema em ate 7 dias (proxy).",
+          "example": "Deploy seguido de CORRECAO Critica em 3 dias => 1 falha proxy."
+        },
+        {
+          "key": "rate_pct",
+          "formula": "failed_deployments / deployments_evaluated x 100.",
+          "example": "2 falhas em 18 deploys => 11,1%."
+        },
+        {
+          "key": "lead_time_deploy",
+          "formula": "Aguardando producao ate Em producao; direct usa momento da entrada.",
+          "example": "2h em Aguardando producao + 30 min ate Em producao => 2,5h."
+        }
+      ]
+    },
+    "quality_gates": {
+      "title": "Dupla revisao obrigatoria",
+      "description": "Cards Fibonacci 8 ou 13 exigem revisao em par E revisao formal antes da entrega.",
+      "metrics": [
+        {
+          "key": "mandatory_compliance_pct",
+          "formula": "cards_nivel_8_13_conformes / cards_nivel_8_13_entregues x 100.",
+          "example": "4 cards 8/13, 1 sem revisao formal => 75%."
+        },
+        {
+          "key": "double_review_mandatory_violations",
+          "formula": "Entregues 8/13 que nao cumpriram par + formal.",
+          "example": "Card 13 pts so com revisao par => +1 violacao."
+        }
+      ]
+    },
+    "team_summary": {
+      "title": "Resumo executivo do time",
+      "description": "Indicadores consolidados de volume, qualidade e selo do periodo.",
+      "metrics": [
+        {
+          "key": "quality_rate_pct",
+          "formula": "100% - rework_rate_pct. Retrabalho = entrega com retorno DEV penalizado.",
+          "example": "10 entregas, 1 com retorno => qualidade 90%, selo Prata/Ouro conforme faixa."
+        },
+        {
+          "key": "total_prevented_problems",
+          "formula": "Soma de retornos ao DEV detectados na fase de teste.",
+          "example": "Tester devolveu 5 cards por bug => 5 problemas evitados."
+        }
+      ]
+    },
+    "bottlenecks": {
+      "title": "Gargalos",
+      "description": "Estagios fundidos do fluxo com maior tempo medio de permanencia.",
+      "metrics": [
+        {
+          "key": "avg_human",
+          "formula": "Media de horas na etapa entre cards que a visitaram no periodo.",
+          "example": "Aguardando teste media 36h => candidato a gargalo."
+        },
+        {
+          "key": "p85_hours",
+          "formula": "85% dos cards ficam abaixo deste tempo na etapa.",
+          "example": "P85 Dev = 72h: poucos cards demoram mais que 3 dias em Dev."
+        }
+      ]
+    },
+    "priority": {
+      "title": "Prioridade e fila",
+      "description": "Inflacao de urgente/critico, furou fila e envelhecimento de cards prioritarios.",
+      "metrics": [
+        {
+          "key": "urgent_critical_pct",
+          "formula": "Cards urgentes/criticos / total metricado x 100.",
+          "example": "40% urgentes pode indicar inflacao de prioridade."
+        },
+        {
+          "key": "queue_jumps_count",
+          "formula": "Cards que passaram na frente de outro de prioridade maior.",
+          "example": "Urgente criado depois entregue antes de Critico antigo => furou fila."
+        }
+      ]
+    },
+    "risk": {
+      "title": "Risco operacional",
+      "description": "Cards parados, estourando SLA ou com sinais de atencao imediata.",
+      "metrics": [
+        {
+          "key": "stuck_now_count",
+          "formula": "Cards abertos ha N+ dias na mesma etapa.",
+          "example": "Card 5 dias em Aguardando teste => risco de atraso."
+        },
+        {
+          "key": "current_at_risk_count",
+          "formula": "Cards abertos com SLA >= 80% consumido.",
+          "example": "SLA 40h, card ha 34h na etapa => em risco."
+        }
+      ]
+    },
+    "direct_production": {
+      "title": "Diretamente na producao",
+      "description": "Hotfix para master sem homolog/teste. Pode sair de Em andamento, Revisao em par ou Em revisao direto para Diretamente na producao. Conta como deploy DORA. Apos producao nao pode retornar — abrir novo card se problema persistir.",
+      "metrics": [
+        {
+          "key": "direct_production",
+          "formula": "Entrada na lista Diretamente na producao a partir de Em andamento, Revisao em par ou Em revisao.",
+          "example": "Card em Revisao em par vai direto para master => +1 deploy direct, conforme."
+        },
+        {
+          "key": "post_terminal_return",
+          "formula": "Violacao: movimento para RETORNO apos Em producao/Diretamente/Analises finalizadas.",
+          "example": "Card em producao voltou para RETORNO DEV => processo incorreto."
+        }
+      ]
+    },
+    "analysis_workflow": {
+      "title": "Cards de analise",
+      "description": "Dev analisa -> Analises para planejamento -> solicitante decide -> Analises finalizadas ou novo card.",
+      "metrics": [
+        {
+          "key": "analysis_delivered",
+          "formula": "Cards analise que entraram em Analises finalizadas no periodo.",
+          "example": "3 analises concluidas no mes."
+        },
+        {
+          "key": "planning_wait_hours",
+          "formula": "Tempo em Analises para planejamento aguardando decisao do solicitante.",
+          "example": "48h medias em planejamento => gargalo de decisao."
+        },
+        {
+          "key": "descricao_completa_pct",
+          "formula": "Cards com analise_realizada E recomendacao preenchidos.",
+          "example": "2 de 5 sem recomendacao => 60% completos."
+        }
+      ]
+    }
+  }
+}
