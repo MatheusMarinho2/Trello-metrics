@@ -1,0 +1,23 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    container_name: trello-analytics
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:80"
+    env_file:
+      - .env
+    environment:
+      DJANGO_DEBUG: "${DJANGO_DEBUG:-0}"
+      DJANGO_DB_PATH: /data/db.sqlite3
+      GUNICORN_WORKERS: "${GUNICORN_WORKERS:-2}"
+      GUNICORN_TIMEOUT: "${GUNICORN_TIMEOUT:-300}"
+    volumes:
+      - trello_data:/data
+
+volumes:
+  trello_data:

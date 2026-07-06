@@ -70,6 +70,40 @@ npm run dev
 
 A UI fica em `http://127.0.0.1:5173` e consome a API em `http://127.0.0.1:8000/api`.
 
+## Deploy com Docker (VPS)
+
+Um unico container sobe nginx (frontend React) + gunicorn (Django). O banco SQLite fica no volume `trello_data`.
+
+Na VPS:
+
+```bash
+git clone ssh://git@git.intgest.com.br:10022/root/trello-analytics.git
+cd trello-analytics
+cp .env.example .env
+# edite .env: DJANGO_SECRET_KEY, DJANGO_ALLOWED_HOSTS, credenciais Trello, senha admin
+docker compose up -d --build
+```
+
+A aplicacao fica em `http://<vps>:8080` (porta configuravel via `APP_PORT` no `.env`).
+
+Atualizar apos push:
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+Remotes Git configurados:
+
+- `origin` → GitHub
+- `gitlab` → GitLab INTGEST (`ssh://git@git.intgest.com.br:10022/root/trello-analytics.git`)
+
+Push para GitLab:
+
+```bash
+git push gitlab main
+```
+
 ### Endpoints web
 
 ```text

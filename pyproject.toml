@@ -9,6 +9,7 @@ dependencies = [
   "tzdata>=2024.1",
   "Django>=5.2,<6.0",
   "djangorestframework>=3.16",
+  "gunicorn>=23.0.0",
 ]
 
 [tool.pytest.ini_options]
