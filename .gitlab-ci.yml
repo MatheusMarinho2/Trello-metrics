@@ -22,6 +22,7 @@ default:
     - apt-get update && apt-get install -y --no-install-recommends libfreetype6 libpng16-16
     - pip install --quiet -r requirements.txt pytest
   script:
+    - export PYTHONPATH="${CI_PROJECT_DIR}/backend:${CI_PROJECT_DIR}"
     - pytest tests/ -q
 
 test:
