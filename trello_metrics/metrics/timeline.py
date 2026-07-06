@@ -114,6 +114,11 @@ class CardTimeline:
     metric_cycle_hours: float | None = None
     # Vida util real do card: criacao ate fechamento (ou agora, se ainda aberto).
     lead_time_hours: float = 0.0
+    terminal_reached_at: datetime | None = None
+    terminal_group: str = ""
+    return_after_terminal: bool = False
+    return_after_terminal_events: list[dict[str, Any]] = field(default_factory=list)
+    used_direct_production: bool = False
 
     @property
     def retest_cycles(self) -> int:
@@ -297,6 +302,14 @@ def _build_one(
         if timeline.delivered_at is None and group in delivery_groups:
             timeline.delivered_at = span["start"]
 
+    if timeline.delivered_at is None:
+        done_groups = set(workflow.done_groups_for_kind(kind))
+        for span in list_spans:
+            group = workflow.group_for_list(span["list_name"])
+            if group in done_groups:
+                timeline.delivered_at = span["start"]
+                break
+
     timeline.stage_timeline = _build_stage_timeline(list_spans, workflow)
     _apply_flow_metrics(timeline, workflow)
 
@@ -351,6 +364,14 @@ def _build_one(
         timeline.pause_count = len(timeline.pausas)
     timeline.retorno_history = _build_retorno_history(timeline.retornos, ordered, workflow)
     _apply_return_metrics(timeline, ordered, workflow)
+
+    timeline.used_direct_production = timeline.group_visits.get("direct_production", 0) > 0
+    (
+        timeline.return_after_terminal,
+        timeline.return_after_terminal_events,
+        timeline.terminal_reached_at,
+        timeline.terminal_group,
+    ) = _detect_return_after_terminal(ordered, workflow)
 
     return timeline
 
@@ -687,6 +708,38 @@ def _list_spans(
             }
         )
     return spans
+
+
+def _detect_return_after_terminal(
+    events: list[MovementEvent],
+    workflow: WorkflowConfig,
+) -> tuple[bool, list[dict[str, Any]], datetime | None, str]:
+    terminal_groups = {"production", "direct_production", "analysis_done"}
+    return_groups = {"return_developer", "return_support"}
+    terminal_at: datetime | None = None
+    terminal_group = ""
+    violations: list[dict[str, Any]] = []
+
+    for event in sorted(events, key=lambda item: item.at):
+        if event.event_type != "moved" or not event.at:
+            continue
+        target = workflow.group_for_list(event.to_list_name)
+        if terminal_at is None and target in terminal_groups:
+            terminal_at = event.at
+            terminal_group = target
+            continue
+        if terminal_at and target in return_groups and event.at >= terminal_at:
+            violations.append(
+                {
+                    "at": isoformat(event.at),
+                    "from_list": event.from_list_name,
+                    "to_list": event.to_list_name,
+                    "target_group": target,
+                    "terminal_group": terminal_group,
+                }
+            )
+
+    return bool(violations), violations, terminal_at, terminal_group
 
 
 def _detect_gestor_premature_approval(transitions: list[tuple[str, str]]) -> bool:

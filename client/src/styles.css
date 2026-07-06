@@ -691,6 +691,122 @@ select:disabled {
   font-family: inherit;
 }
 
+.analysis-body {
+  margin-top: 12px;
+  color: #23384d;
+  line-height: 1.6;
+}
+
+.analysis-body h3,
+.analysis-body h4,
+.analysis-body h5 {
+  margin: 14px 0 8px;
+  color: #10253a;
+}
+
+.analysis-body h3 {
+  font-size: 1.15rem;
+}
+
+.analysis-body h4 {
+  font-size: 1rem;
+}
+
+.analysis-body h5 {
+  font-size: 0.92rem;
+}
+
+.analysis-body p {
+  margin: 0 0 8px;
+}
+
+.analysis-bullet {
+  padding-left: 10px;
+  border-left: 3px solid #2563eb;
+}
+
+.analysis-spacer {
+  height: 6px;
+}
+
+.ai-list {
+  margin: 0 0 10px 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 6px;
+}
+
+.ai-list li {
+  line-height: 1.55;
+}
+
+.ai-list-ordered {
+  list-style: decimal;
+}
+
+.ai-callout {
+  margin: 10px 0 12px;
+  padding: 12px 14px;
+  border-left: 4px solid #2563eb;
+  border-radius: 0 8px 8px 0;
+  background: #f4f8ff;
+}
+
+.ai-callout-warn {
+  border-left-color: #ea580c;
+  background: #fff7ed;
+}
+
+.ai-callout p {
+  margin: 0 0 6px;
+}
+
+.ai-callout p:last-child {
+  margin-bottom: 0;
+}
+
+.ai-code {
+  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-size: 0.82rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #e8eef5;
+  color: #0f2740;
+  word-break: break-all;
+}
+
+.ai-h4 {
+  margin-top: 16px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #d8e6f3;
+}
+
+.ai-h4-alert {
+  color: #9a3412;
+  border-bottom-color: #fdba74;
+}
+
+.ai-h6 {
+  margin: 10px 0 6px;
+  font-size: 0.88rem;
+  color: #334155;
+}
+
+.ai-divider {
+  border: 0;
+  border-top: 1px dashed #cbd5e1;
+  margin: 12px 0;
+}
+
+.ai-status-chip,
+.ai-meta {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: #63748a;
+  font-weight: 600;
+}
+
 .metric-sections {
   display: grid;
   gap: 14px;

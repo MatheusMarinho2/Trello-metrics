@@ -15,11 +15,11 @@
     "waiting_review": "Aguardando revisao",
     "review": "Em revisao",
     "cicd_homologacao": "CI/CD Homologacao",
-    "waiting_deploy": "Aguardando deploy",
+    "waiting_deploy": "Aguardando deploy (homologacao)",
     "waiting_test": "Aguardando teste",
     "testing": "Em teste",
     "waiting_production": "Aguardando producao",
-    "production": "Em producao",
+    "production": "Em producao (deploy produtivo concluido)",
     "direct_production": "Diretamente na producao",
     "analysis_done": "Analises finalizadas",
     "unknown": "Nao mapeado"

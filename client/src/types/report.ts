@@ -15,11 +15,20 @@ export interface SelectOption {
   default_model?: string;
 }
 
+export interface AIProviderOption {
+  value: AIProvider;
+  label: string;
+  default_model: string;
+  models: SelectOption[];
+}
+
 export interface ReportOptions {
   report_types: SelectOption[];
   metric_options: SelectOption[];
-  ai_providers: SelectOption[];
+  ai_providers: AIProviderOption[];
 }
+
+export const AI_MAX_OUTPUT_TOKENS = 131_072;
 
 export interface GenerateReportPayload {
   report_type: ReportType;

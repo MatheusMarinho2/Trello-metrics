@@ -7,6 +7,7 @@ from typing import Any
 
 from trello_metrics.domain.models import BoardData, MovementEvent, TrelloCard
 from trello_metrics.domain.workflow import WorkflowConfig
+from trello_metrics.metrics.aggregators.analysis_workflow import aggregate_analysis_workflow
 from trello_metrics.metrics.aggregators.bottlenecks import aggregate_bottlenecks
 from trello_metrics.metrics.aggregators.card_dossier import aggregate_card_dossier
 from trello_metrics.metrics.aggregators.collaborators import aggregate_collaborators
@@ -158,6 +159,7 @@ class MetricsEngine:
                 self.workflow,
                 period,
             )
+            payload["analysis_workflow"] = aggregate_analysis_workflow(timelines, period)
             payload["risk_board"] = risk_board
             payload["card_dossier"] = aggregate_card_dossier(timelines, period)
             payload["collaborators"] = aggregate_collaborators(

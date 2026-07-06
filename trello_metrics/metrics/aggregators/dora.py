@@ -17,6 +17,8 @@ from trello_metrics.utils.period import MonthPeriod
 
 
 PRODUCTION_GROUPS = {"production", "direct_production"}
+HOMOLOG_DEPLOY_GROUPS = {"waiting_deploy", "cicd_homologacao"}
+PRODUCTION_DEPLOY_QUEUE_GROUPS = {"waiting_production"}
 
 
 def aggregate_dora_metrics(
@@ -34,10 +36,11 @@ def aggregate_dora_metrics(
     deployed_timelines = [timeline for timeline, _ in deployments]
     deploy_frequency = Counter(week_key(stage.start_at) for _, stage in deployments)
     deploy_by_system = Counter(timeline.sistema for timeline, _ in deployments)
+    deploy_by_path = Counter(stage.group for _, stage in deployments)
     deploy_lead_values = [
         hours_between(start, stage.start_at)
         for timeline, stage in deployments
-        if (start := _first_waiting_deploy_start(timeline))
+        if (start := _production_deploy_window_start(timeline, stage))
     ]
 
     failures = _change_failures(
@@ -57,6 +60,15 @@ def aggregate_dora_metrics(
     ]
 
     return {
+        "note": (
+            "Frequencia e falhas de deploy usam apenas Em producao / Diretamente na producao. "
+            "Aguardando deploy e CI/CD Homologacao sao etapas de homologacao antes do teste, "
+            "nao entram como deploy em producao."
+        ),
+        "cfr_note": (
+            "Change failure rate e um PROXY: conta card corretivo (label CORRECAO) do mesmo "
+            "sistema ate 7 dias apos o deploy. Nao mede falha real de pipeline/rollback."
+        ),
         "deployment_frequency": {
             "total": len(deployments),
             "by_week": dict(sorted(deploy_frequency.items())),
@@ -64,6 +76,10 @@ def aggregate_dora_metrics(
                 {"sistema": sistema, "count": count}
                 for sistema, count in deploy_by_system.most_common()
             ],
+            "by_path": {
+                "standard_production": deploy_by_path.get("production", 0),
+                "direct_production": deploy_by_path.get("direct_production", 0),
+            },
         },
         "lead_time_deploy": time_stats(deploy_lead_values),
         "change_failure_rate": {
@@ -77,10 +93,16 @@ def aggregate_dora_metrics(
     }
 
 
-def _first_waiting_deploy_start(timeline: CardTimeline):
+def _production_deploy_window_start(
+    timeline: CardTimeline,
+    production_stage: StageTimelineEntry,
+):
+    """Lead time de deploy produtivo: da fila de producao ate Em producao."""
     for stage in timeline.stage_timeline:
-        if stage.group == "waiting_deploy":
+        if stage.group in PRODUCTION_DEPLOY_QUEUE_GROUPS:
             return stage.start_at
+    if production_stage.group == "direct_production":
+        return production_stage.start_at
     return None
 
 

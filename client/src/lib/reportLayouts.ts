@@ -1,30 +1,31 @@
 import type { ReportType } from "../types/report";
 
-export const REPORT_PREVIEW_SECTIONS: Record<
-  ReportType,
-  Array<
-    | "collaborators"
-    | "developers"
-    | "reviewers"
-    | "testers"
-    | "requesters"
-    | "projects"
-    | "cards"
-    | "sla_dev"
-    | "sla_cards"
-    | "bottlenecks"
-    | "alerts"
-    | "team_summary"
-    | "flow"
-    | "priority"
-    | "dora"
-    | "quality_gates"
-    | "discipline"
-    | "individual"
-    | "role_metrics"
-    | "fibonacci"
-  >
-> = {
+export type PreviewSection =
+  | "collaborators"
+  | "developers"
+  | "reviewers"
+  | "testers"
+  | "requesters"
+  | "projects"
+  | "cards"
+  | "sla_dev"
+  | "sla_cards"
+  | "bottlenecks"
+  | "alerts"
+  | "team_summary"
+  | "flow"
+  | "priority"
+  | "dora"
+  | "quality_gates"
+  | "discipline"
+  | "individual"
+  | "role_metrics"
+  | "fibonacci"
+  | "trends"
+  | "risk"
+  | "analysis_workflow";
+
+export const REPORT_PREVIEW_SECTIONS: Record<ReportType, PreviewSection[]> = {
   general: [
     "team_summary",
     "flow",
@@ -32,6 +33,7 @@ export const REPORT_PREVIEW_SECTIONS: Record<
     "dora",
     "quality_gates",
     "discipline",
+    "analysis_workflow",
     "fibonacci",
     "collaborators",
     "developers",
@@ -48,11 +50,25 @@ export const REPORT_PREVIEW_SECTIONS: Record<
   developers: ["role_metrics", "developers", "flow", "fibonacci", "sla_dev", "quality_gates"],
   requesters: ["role_metrics", "requesters", "projects"],
   testers: ["role_metrics", "testers", "quality_gates"],
-  management: ["team_summary", "flow", "priority", "dora", "discipline", "projects", "sla_dev", "bottlenecks", "alerts"],
+  management: [
+    "team_summary",
+    "flow",
+    "priority",
+    "dora",
+    "discipline",
+    "quality_gates",
+    "analysis_workflow",
+    "projects",
+    "sla_dev",
+    "bottlenecks",
+    "alerts",
+    "trends",
+    "risk",
+  ],
   specific_metrics: ["team_summary", "sla_dev", "sla_cards", "bottlenecks", "flow", "priority", "dora"],
 };
 
-export const METRIC_KEY_SECTIONS: Record<string, Array<(typeof REPORT_PREVIEW_SECTIONS.general)[number]>> = {
+export const METRIC_KEY_SECTIONS: Record<string, PreviewSection[]> = {
   team_summary: ["team_summary"],
   flow: ["flow"],
   developers: ["role_metrics", "developers", "fibonacci", "flow", "quality_gates", "sla_dev"],
@@ -65,14 +81,15 @@ export const METRIC_KEY_SECTIONS: Record<string, Array<(typeof REPORT_PREVIEW_SE
   dora: ["dora"],
   quality_gates: ["quality_gates"],
   discipline: ["discipline"],
+  analysis_workflow: ["analysis_workflow"],
 };
 
 export function allowedSectionsForReport(
   reportType: ReportType,
   metricKeys?: string[],
-): Set<(typeof REPORT_PREVIEW_SECTIONS.general)[number]> {
+): Set<PreviewSection> {
   if (reportType === "specific_metrics" && metricKeys?.length) {
-    const allowed = new Set<(typeof REPORT_PREVIEW_SECTIONS.general)[number]>();
+    const allowed = new Set<PreviewSection>();
     for (const key of metricKeys) {
       for (const section of METRIC_KEY_SECTIONS[key] ?? []) {
         allowed.add(section);
@@ -89,6 +106,6 @@ export const TAB_DESCRIPTIONS: Record<ReportType, string> = {
   developers: "Entregas, pontos Fibonacci, tempo de atuacao e qualidade por desenvolvedor.",
   requesters: "Demanda criada, planejamento e entregas por solicitante.",
   testers: "Testes, primeira passagem, problemas evitados e retestes.",
-  management: "Indicadores para gestao: fluxo, SLA, risco, DORA e tendencias.",
+  management: "Indicadores para gestao: fluxo, SLA, risco, DORA, analises e tendencias.",
   specific_metrics: "Somente as metricas selecionadas abaixo.",
 };

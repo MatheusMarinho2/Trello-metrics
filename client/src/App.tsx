@@ -44,7 +44,16 @@ import {
   TAB_DESCRIPTIONS,
   allowedSectionsForReport,
 } from "./lib/reportLayouts";
-import type { AIProvider, Collaborator, GenerateReportPayload, GeneratedReport, ReportOptions, ReportType } from "./types/report";
+import {
+  AI_MAX_OUTPUT_TOKENS,
+  type AIProvider,
+  type Collaborator,
+  type GenerateReportPayload,
+  type GeneratedReport,
+  type ReportOptions,
+  type ReportType,
+} from "./types/report";
+import { AiMarkdown } from "./utils/aiMarkdown";
 import {
   MANAGEMENT_GUIDE_SECTIONS,
   metricDescription,
@@ -77,9 +86,37 @@ const fallbackOptions: ReportOptions = {
     { value: "card_dossier", label: "Detalhamento" },
   ],
   ai_providers: [
-    { value: "openai", label: "GPT", default_model: "gpt-5.4-mini" },
-    { value: "gemini", label: "Gemini", default_model: "gemini-3.5-flash" },
-    { value: "claude", label: "Claude", default_model: "claude-sonnet-5" },
+    {
+      value: "openai",
+      label: "GPT",
+      default_model: "gpt-4o-mini",
+      models: [
+        { value: "gpt-4o-mini", label: "GPT-4o Mini (padrao)" },
+        { value: "gpt-4o", label: "GPT-4o" },
+        { value: "gpt-4.1-mini", label: "GPT-4.1 Mini" },
+      ],
+    },
+    {
+      value: "gemini",
+      label: "Gemini",
+      default_model: "gemini-2.5-flash",
+      models: [
+        { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash (padrao)" },
+        { value: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
+        { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+        { value: "gemini-3.5-flash", label: "Gemini 3.5 Flash" },
+      ],
+    },
+    {
+      value: "claude",
+      label: "Claude",
+      default_model: "claude-sonnet-4-20250514",
+      models: [
+        { value: "claude-sonnet-4-20250514", label: "Claude Sonnet 4 (padrao)" },
+        { value: "claude-3-5-sonnet-latest", label: "Claude 3.5 Sonnet" },
+        { value: "claude-3-5-haiku-latest", label: "Claude 3.5 Haiku" },
+      ],
+    },
   ],
 };
 
@@ -112,7 +149,7 @@ function App() {
 
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiProvider, setAiProvider] = useState<AIProvider>("openai");
-  const [aiModel, setAiModel] = useState("gpt-5.4-mini");
+  const [aiModel, setAiModel] = useState("gpt-4o-mini");
   const [aiKey, setAiKey] = useState("");
 
   useEffect(() => {
@@ -138,6 +175,7 @@ function App() {
       ]);
       setUsername(me.user.username);
       setOptions(loadedOptions);
+      setAiModel((current) => ensureValidModel(aiProvider, current, loadedOptions));
       setCollaborators(loadedCollaborators);
       setReports(history);
       if (history.length > 0) {
@@ -230,7 +268,7 @@ function App() {
           api_key: aiKey,
           model: aiModel,
           temperature: 0.2,
-          max_tokens: 1800,
+          max_tokens: AI_MAX_OUTPUT_TOKENS,
         },
       };
       const report = await generateReport(token, payload);
@@ -568,11 +606,17 @@ function App() {
               </label>
               <label>
                 Modelo
-                <input
+                <select
                   value={aiModel}
                   disabled={!aiEnabled}
                   onChange={(event) => setAiModel(event.target.value)}
-                />
+                >
+                  {modelsForProvider(aiProvider, options).map((model) => (
+                    <option key={model.value} value={model.value}>
+                      {model.label}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label>
                 API key
@@ -750,6 +794,38 @@ function KpiStrip({ report }: { report: GeneratedReport }) {
 
   const team = metrics.team_summary ?? {};
   const overview = metrics.overview ?? {};
+
+  if (report.report_type === "management") {
+    const flow = metrics.flow?.team ?? {};
+    const dora = metrics.dora ?? {};
+    const slaTeam = metrics.sla?.team ?? {};
+    const discipline = metrics.process_discipline?.flow_conformity ?? {};
+    const risk = metrics.risk_board ?? {};
+    const cfr = dora.change_failure_rate ?? {};
+    return (
+      <div className="kpi-strip">
+        <Kpi label="Entregues" value={team.cards_delivered ?? "-"} term="cards_delivered" />
+        <Kpi
+          label="SLA time"
+          value={slaTeam.compliance_pct != null ? `${slaTeam.compliance_pct}%` : "-"}
+          term="compliance_pct"
+        />
+        <Kpi
+          label="CFR DORA"
+          value={cfr.rate_pct != null ? `${cfr.rate_pct}%` : "-"}
+          term="rate_pct"
+        />
+        <Kpi
+          label="Conformidade"
+          value={discipline.compliance_pct != null ? `${discipline.compliance_pct}%` : "-"}
+          term="compliance_pct"
+        />
+        <Kpi label="Risco alto" value={risk.high_or_critical_count ?? "-"} term="high_or_critical_count" />
+        <Kpi label="WIP" value={flow.wip_total ?? "-"} term="wip_total" />
+      </div>
+    );
+  }
+
   const flow = metrics.flow?.team ?? {};
   const items = [];
 
@@ -793,17 +869,39 @@ function SnapshotInfo({ report }: { report: GeneratedReport }) {
 
 function AiAnalysis({ report }: { report: GeneratedReport }) {
   const analysis = report.ai_analysis || report.filtered_metrics?.ai_analysis;
-  if (!analysis && report.ai_status !== "error") return null;
+  const status = report.ai_status || report.filtered_metrics?.ai?.status;
+
+  if (!analysis && status === "disabled") return null;
 
   return (
-    <section className={report.ai_status === "error" ? "analysis-panel error" : "analysis-panel"}>
+    <section className={status === "error" ? "analysis-panel error" : "analysis-panel"}>
       <div className="panel-title compact">
         <BrainCircuit size={18} />
-        <h2>Analise IA</h2>
+        <div>
+          <h2>Analise IA</h2>
+          {status && status !== "generated" ? (
+            <span className="ai-status-chip">{aiStatusLabel(status)}</span>
+          ) : null}
+          {report.ai_provider ? (
+            <span className="ai-meta">
+              {report.ai_provider} · {report.ai_model || "modelo padrao"}
+            </span>
+          ) : null}
+        </div>
       </div>
-      {analysis ? <pre>{analysis}</pre> : <p>{report.ai_error}</p>}
+      {analysis ? <AiMarkdown text={analysis} /> : <p>{report.ai_error || "Analise nao gerada."}</p>}
     </section>
   );
+}
+
+function aiStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    skipped: "IA desativada — informe API key",
+    error: "Erro na geracao",
+    empty: "Resposta vazia",
+    disabled: "IA desligada",
+  };
+  return labels[status] ?? status;
 }
 
 function MetricSections({ report }: { report: GeneratedReport }) {
@@ -811,6 +909,10 @@ function MetricSections({ report }: { report: GeneratedReport }) {
   const allowed = allowedSectionsForReport(report.report_type, report.metric_keys);
   const showCardDossier =
     report.report_type !== "specific_metrics" || (report.metric_keys ?? []).includes("card_dossier");
+
+  if (report.report_type === "management") {
+    return <ManagementSections metrics={metrics} allowed={allowed} />;
+  }
 
   if (allowed.has("individual") && metrics.individual_summary) {
     const collaborator = metrics.collaborators?.[0];
@@ -931,6 +1033,89 @@ function MetricSections({ report }: { report: GeneratedReport }) {
       ) : null}
       {showCardDossier && !metrics.collaborators?.length ? (
         <CardDossier title="Cards" metrics={metrics} />
+      ) : null}
+    </div>
+  );
+}
+
+function ManagementSections({
+  metrics,
+  allowed,
+}: {
+  metrics: Record<string, any>;
+  allowed: Set<string>;
+}) {
+  const trends = metrics.trends_6m;
+  const trendRows = (trends?.team ?? []).map((row: Record<string, any>) => ({
+    month: row.month,
+    cards_delivered: row.cards_delivered,
+    quality_rate_pct: row.quality_rate_pct,
+    rework_rate_pct: row.rework_rate_pct,
+  }));
+
+  return (
+    <div className="metric-sections">
+      {allowed.has("team_summary") && metrics.team_summary ? (
+        <ObjectPanel title="Resumo do time" value={metrics.team_summary} />
+      ) : null}
+      {allowed.has("flow") && metrics.flow?.team ? (
+        <ObjectPanel title="Fluxo do time" value={metrics.flow.team} />
+      ) : null}
+      {allowed.has("priority") && metrics.priority?.team ? (
+        <ObjectPanel title="Prioridade" value={metrics.priority.team} />
+      ) : null}
+      {allowed.has("dora") && metrics.dora ? (
+        <ObjectPanel title="DORA" value={metrics.dora} />
+      ) : null}
+      {allowed.has("quality_gates") && metrics.quality_gates ? (
+        <ObjectPanel title="Dupla revisao" value={metrics.quality_gates} />
+      ) : null}
+      {allowed.has("discipline") && metrics.process_discipline ? (
+        <>
+          <ObjectPanel title="Disciplina de processo" value={metrics.process_discipline} />
+          {(metrics.process_discipline.post_terminal_returns?.count ?? 0) > 0 ? (
+            <MetricTable
+              title="Retornos apos producao/analise finalizada"
+              rows={metrics.process_discipline.post_terminal_returns.cards ?? []}
+            />
+          ) : null}
+        </>
+      ) : null}
+      {allowed.has("analysis_workflow") && metrics.analysis_workflow ? (
+        <>
+          <ObjectPanel title="Cards de analise" value={metrics.analysis_workflow} />
+          {Array.isArray(metrics.analysis_workflow.highlight_cards) &&
+          metrics.analysis_workflow.highlight_cards.length > 0 ? (
+            <MetricTable title="Analises em destaque" rows={metrics.analysis_workflow.highlight_cards} />
+          ) : null}
+        </>
+      ) : null}
+      {allowed.has("risk") && metrics.risk_board ? (
+        <>
+          <ObjectPanel title="Risco" value={metrics.risk_board} />
+          {Array.isArray(metrics.risk_board.cards_that_need_attention) &&
+          metrics.risk_board.cards_that_need_attention.length > 0 ? (
+            <MetricTable title="Cards que precisam de atencao" rows={metrics.risk_board.cards_that_need_attention} />
+          ) : null}
+        </>
+      ) : null}
+      {allowed.has("trends") && trendRows.length > 0 ? (
+        <MetricTable title="Tendencia 6 meses" rows={trendRows} />
+      ) : null}
+      {allowed.has("projects") && metrics.projects ? (
+        <MetricTable title="Projetos" rows={metrics.projects} />
+      ) : null}
+      {allowed.has("bottlenecks") && metrics.bottlenecks?.by_stage ? (
+        <MetricTable title="Gargalos" rows={metrics.bottlenecks.by_stage} />
+      ) : null}
+      {allowed.has("sla_dev") && metrics.sla?.by_developer ? (
+        <MetricTable title="SLA por desenvolvedor" rows={metrics.sla.by_developer} />
+      ) : null}
+      {allowed.has("alerts") && metrics.sla?.current_alerts ? (
+        <MetricTable title="Cards em risco (SLA)" rows={metrics.sla.current_alerts} />
+      ) : null}
+      {metrics.bottlenecks?.management_only_view ? (
+        <ObjectPanel title="Visao gerencial por lista" value={metrics.bottlenecks.management_only_view} />
       ) : null}
     </div>
   );
@@ -1508,8 +1693,24 @@ function defaultModelFor(provider: AIProvider, options: ReportOptions): string {
   return (
     options.ai_providers.find((item) => item.value === provider)?.default_model ??
     fallbackOptions.ai_providers.find((item) => item.value === provider)?.default_model ??
-    ""
+    "gpt-4o-mini"
   );
+}
+
+function modelsForProvider(provider: AIProvider, options: ReportOptions) {
+  return (
+    options.ai_providers.find((item) => item.value === provider)?.models ??
+    fallbackOptions.ai_providers.find((item) => item.value === provider)?.models ??
+    []
+  );
+}
+
+function ensureValidModel(provider: AIProvider, model: string, options: ReportOptions): string {
+  const models = modelsForProvider(provider, options);
+  if (models.some((item) => item.value === model)) {
+    return model;
+  }
+  return defaultModelFor(provider, options);
 }
 
 function currentMonth(): string {

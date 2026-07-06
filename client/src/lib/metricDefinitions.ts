@@ -40,8 +40,12 @@ export const MANAGEMENT_GUIDE_SECTIONS = [
   "team_summary",
   "flow",
   "dora",
+  "direct_production",
   "sla",
   "process_discipline",
+  "analysis_workflow",
+  "priority",
+  "risk",
   "bottlenecks",
   "quality_gates",
 ] as const;

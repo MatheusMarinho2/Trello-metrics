@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from trello_metrics.config import load_workflow_config
 from trello_metrics.domain.models import (
     BoardData,
+    CardDescriptionData,
     CustomFieldChange,
     MovementEvent,
     TrelloCard,
@@ -884,7 +885,7 @@ class MetricsEngineTest(unittest.TestCase):
         self.assertGreater(result["flow"]["team"]["little_law"]["predicted_lead_time_days"], 0)
         self.assertEqual(result["priority"]["urgent_critical_pct"], 100.0)
         self.assertEqual(result["dora"]["deployment_frequency"]["total"], 1)
-        self.assertEqual(result["dora"]["lead_time_deploy"]["median_hours"], 4.0)
+        self.assertEqual(result["dora"]["lead_time_deploy"]["median_hours"], 1.0)
         self.assertEqual(result["process_discipline"]["flow_conformity"]["compliance_pct"], 100.0)
         self.assertEqual(
             result["process_discipline"]["developer_assignment_latency"]["median_hours"],
@@ -1014,6 +1015,460 @@ class MetricsEngineTest(unittest.TestCase):
         self.assertNotIn("developers", filtered)
         self.assertNotIn("requesters", filtered)
         self.assertEqual(filtered["metric_keys"], ["team_summary", "flow"])
+
+    def test_dora_deploy_paths_and_cfr_proxy(self) -> None:
+        standard = TrelloCard(
+            id="deploy_std",
+            name="PM CLIENTE / Deploy normal",
+            current_list_id="prod",
+            current_list_name="EM PRODUCAO",
+            created_at=_dt(2026, 6, 1, 8),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.A",
+                "Nivel": "3",
+                "Sistema": "Legislativo",
+                "Solicitante": "S-Sol",
+            },
+        )
+        direct = TrelloCard(
+            id="deploy_direct",
+            name="PM CLIENTE / Hotfix direto",
+            current_list_id="direct",
+            current_list_name="DIRETAMENTE NA PRODUCAO",
+            created_at=_dt(2026, 6, 2, 8),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.B",
+                "Nivel": "2",
+                "Sistema": "Executivo",
+                "Solicitante": "S-Sol",
+            },
+        )
+        correction = TrelloCard(
+            id="corr_1",
+            name="PM CLIENTE / Correcao pos deploy",
+            current_list_id="dev",
+            current_list_name="EM ANDAMENTO",
+            created_at=_dt(2026, 6, 3, 10),
+            labels=["CORRECAO"],
+            custom_fields={
+                "Desenvolvedor": "D-Dev.A",
+                "Nivel": "2",
+                "Sistema": "Legislativo",
+                "Solicitante": "S-Sol",
+            },
+        )
+        events = [
+            MovementEvent(
+                card_id=standard.id,
+                card_name=standard.name,
+                at=_dt(2026, 6, 1, 9),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=standard.id,
+                card_name=standard.name,
+                at=_dt(2026, 6, 1, 12),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="AGUARDANDO TESTE (LEGISLATIVO)",
+            ),
+            MovementEvent(
+                card_id=standard.id,
+                card_name=standard.name,
+                at=_dt(2026, 6, 1, 13),
+                event_type="moved",
+                from_list_name="AGUARDANDO TESTE (LEGISLATIVO)",
+                to_list_name="EM TESTE",
+            ),
+            MovementEvent(
+                card_id=standard.id,
+                card_name=standard.name,
+                at=_dt(2026, 6, 1, 14),
+                event_type="moved",
+                from_list_name="EM TESTE",
+                to_list_name="AGUARDANDO PRODUCAO (LEGISLATIVO)",
+            ),
+            MovementEvent(
+                card_id=standard.id,
+                card_name=standard.name,
+                at=_dt(2026, 6, 1, 15),
+                event_type="moved",
+                from_list_name="AGUARDANDO PRODUCAO (LEGISLATIVO)",
+                to_list_name="EM PRODUCAO",
+            ),
+            MovementEvent(
+                card_id=direct.id,
+                card_name=direct.name,
+                at=_dt(2026, 6, 2, 9),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=direct.id,
+                card_name=direct.name,
+                at=_dt(2026, 6, 2, 11),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="DIRETAMENTE NA PRODUCAO",
+            ),
+            MovementEvent(
+                card_id=correction.id,
+                card_name=correction.name,
+                at=_dt(2026, 6, 3, 10),
+                event_type="created",
+                to_list_name="PLANEJAMENTO",
+            ),
+        ]
+        board = BoardData(
+            id="board1",
+            name="Board",
+            url="",
+            lists={},
+            cards=[standard, direct, correction],
+            movements=events,
+        )
+        result = MetricsEngine(self.workflow, now=_dt(2026, 6, 30), month="2026-06").calculate(
+            board
+        ).to_dict()
+        dora = result["dora"]
+        by_path = dora["deployment_frequency"]["by_path"]
+        self.assertEqual(dora["deployment_frequency"]["total"], 2)
+        self.assertEqual(by_path["standard_production"], 1)
+        self.assertEqual(by_path["direct_production"], 1)
+        self.assertIn("PROXY", dora["cfr_note"].upper())
+        cfr = dora["change_failure_rate"]
+        self.assertEqual(cfr["failed_deployments"], 1)
+        self.assertEqual(cfr["failures"][0]["deployment_card_id"], "deploy_std")
+        self.assertEqual(cfr["failures"][0]["correction_card_id"], "corr_1")
+
+    def test_direct_production_skips_test_in_discipline(self) -> None:
+        direct = TrelloCard(
+            id="direct_ok",
+            name="PM CLIENTE / Hotfix",
+            current_list_id="direct",
+            current_list_name="DIRETAMENTE NA PRODUCAO",
+            created_at=_dt(2026, 6, 5, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.A",
+                "Nivel": "3",
+                "Sistema": "Legislativo",
+                "Solicitante": "S-Sol",
+            },
+        )
+        skipped_test = TrelloCard(
+            id="skip_test",
+            name="PM CLIENTE / Pulou teste",
+            current_list_id="prod",
+            current_list_name="EM PRODUCAO",
+            created_at=_dt(2026, 6, 6, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.B",
+                "Nivel": "3",
+                "Sistema": "Legislativo",
+                "Solicitante": "S-Sol",
+            },
+        )
+        events = [
+            MovementEvent(
+                card_id=direct.id,
+                card_name=direct.name,
+                at=_dt(2026, 6, 5, 10),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=direct.id,
+                card_name=direct.name,
+                at=_dt(2026, 6, 5, 12),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="DIRETAMENTE NA PRODUCAO",
+            ),
+            MovementEvent(
+                card_id=skipped_test.id,
+                card_name=skipped_test.name,
+                at=_dt(2026, 6, 6, 10),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=skipped_test.id,
+                card_name=skipped_test.name,
+                at=_dt(2026, 6, 6, 12),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="AGUARDANDO PRODUCAO (LEGISLATIVO)",
+            ),
+            MovementEvent(
+                card_id=skipped_test.id,
+                card_name=skipped_test.name,
+                at=_dt(2026, 6, 6, 13),
+                event_type="moved",
+                from_list_name="AGUARDANDO PRODUCAO (LEGISLATIVO)",
+                to_list_name="EM PRODUCAO",
+            ),
+        ]
+        board = BoardData(
+            id="board1",
+            name="Board",
+            url="",
+            lists={},
+            cards=[direct, skipped_test],
+            movements=events,
+        )
+        result = MetricsEngine(self.workflow, now=_dt(2026, 6, 30), month="2026-06").calculate(
+            board
+        ).to_dict()
+        discipline = result["process_discipline"]
+        violations = {
+            item["card_id"]: item for item in discipline["flow_conformity"]["violations"]
+        }
+        self.assertNotIn("direct_ok", violations)
+        self.assertIn("skip_test", violations)
+        self.assertTrue(
+            any("teste" in issue.lower() for issue in violations["skip_test"]["issues"])
+        )
+
+    def test_direct_production_from_peer_review_and_review(self) -> None:
+        from_peer = TrelloCard(
+            id="direct_peer",
+            name="PM CLIENTE / Hotfix pos par",
+            current_list_id="direct",
+            current_list_name="DIRETAMENTE NA PRODUCAO",
+            created_at=_dt(2026, 6, 9, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.A",
+                "Nivel": "5",
+                "Sistema": "Legislativo",
+                "Solicitante": "S-Sol",
+                "Revisor em Par": "R-Par.A",
+            },
+        )
+        from_review = TrelloCard(
+            id="direct_review",
+            name="PM CLIENTE / Hotfix pos revisao",
+            current_list_id="direct",
+            current_list_name="DIRETAMENTE NA PRODUCAO",
+            created_at=_dt(2026, 6, 10, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.B",
+                "Nivel": "8",
+                "Sistema": "Executivo",
+                "Solicitante": "S-Sol",
+                "Revisor": "R-Formal.B",
+            },
+        )
+        events = [
+            MovementEvent(
+                card_id=from_peer.id,
+                card_name=from_peer.name,
+                at=_dt(2026, 6, 9, 10),
+                event_type="created",
+                to_list_name="REVISAO EM PAR",
+            ),
+            MovementEvent(
+                card_id=from_peer.id,
+                card_name=from_peer.name,
+                at=_dt(2026, 6, 9, 12),
+                event_type="moved",
+                from_list_name="REVISAO EM PAR",
+                to_list_name="DIRETAMENTE NA PRODUCAO",
+            ),
+            MovementEvent(
+                card_id=from_review.id,
+                card_name=from_review.name,
+                at=_dt(2026, 6, 10, 10),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=from_review.id,
+                card_name=from_review.name,
+                at=_dt(2026, 6, 10, 11),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="AGUARDANDO REVISAO FORMAL",
+            ),
+            MovementEvent(
+                card_id=from_review.id,
+                card_name=from_review.name,
+                at=_dt(2026, 6, 10, 12),
+                event_type="moved",
+                from_list_name="AGUARDANDO REVISAO FORMAL",
+                to_list_name="EM REVISAO",
+            ),
+            MovementEvent(
+                card_id=from_review.id,
+                card_name=from_review.name,
+                at=_dt(2026, 6, 10, 13),
+                event_type="moved",
+                from_list_name="EM REVISAO",
+                to_list_name="DIRETAMENTE NA PRODUCAO",
+            ),
+        ]
+        board = BoardData(
+            id="board1",
+            name="Board",
+            url="",
+            lists={},
+            cards=[from_peer, from_review],
+            movements=events,
+        )
+        result = MetricsEngine(self.workflow, now=_dt(2026, 6, 30), month="2026-06").calculate(
+            board
+        ).to_dict()
+        violations = {
+            item["card_id"]: item
+            for item in result["process_discipline"]["flow_conformity"]["violations"]
+        }
+        self.assertNotIn("direct_peer", violations)
+        self.assertNotIn("direct_review", violations)
+
+    def test_post_terminal_return_after_production(self) -> None:
+        card = TrelloCard(
+            id="post_term",
+            name="PM CLIENTE / Retorno pos prod",
+            current_list_id="return_dev",
+            current_list_name="RETORNO (DEV)",
+            created_at=_dt(2026, 6, 4, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.A",
+                "Nivel": "3",
+                "Sistema": "Legislativo",
+                "Solicitante": "S-Sol",
+            },
+        )
+        events = [
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 4, 10),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 4, 12),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="AGUARDANDO PRODUCAO (LEGISLATIVO)",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 4, 13),
+                event_type="moved",
+                from_list_name="AGUARDANDO PRODUCAO (LEGISLATIVO)",
+                to_list_name="EM PRODUCAO",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 4, 15),
+                event_type="moved",
+                from_list_name="EM PRODUCAO",
+                to_list_name="RETORNO (DEV)",
+            ),
+        ]
+        board = self._board(card, events)
+        result = MetricsEngine(self.workflow, now=_dt(2026, 6, 30), month="2026-06").calculate(
+            board
+        ).to_dict()
+        post = result["process_discipline"]["post_terminal_returns"]
+        self.assertEqual(post["count"], 1)
+        self.assertEqual(post["cards"][0]["card_id"], "post_term")
+        violations = result["process_discipline"]["flow_conformity"]["violations"]
+        self.assertTrue(any(item["card_id"] == "post_term" for item in violations))
+
+    def test_analysis_workflow_metrics(self) -> None:
+        complete = TrelloCard(
+            id="anal_ok",
+            name="ANALISE / Fluxo completo",
+            current_list_id="done",
+            current_list_name="ANALISES FINALIZADAS",
+            created_at=_dt(2026, 6, 7, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.A",
+                "Nivel (Analise)": "2",
+                "Sistema": "Legislativo",
+                "Solicitante": "S-Sol",
+            },
+            description_data=CardDescriptionData(
+                analise_realizada="Analise feita",
+                recomendacao="Implementar melhoria",
+            ),
+        )
+        incomplete = TrelloCard(
+            id="anal_bad",
+            name="ANALISE / Descricao incompleta",
+            current_list_id="plan",
+            current_list_name="ANALISES PARA PLANEJAMENTO",
+            created_at=_dt(2026, 6, 8, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.B",
+                "Nivel (Analise)": "1",
+                "Sistema": "Executivo",
+                "Solicitante": "S-Sol",
+            },
+        )
+        events = [
+            MovementEvent(
+                card_id=complete.id,
+                card_name=complete.name,
+                at=_dt(2026, 6, 7, 10),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=complete.id,
+                card_name=complete.name,
+                at=_dt(2026, 6, 7, 11),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="ANALISES PARA PLANEJAMENTO",
+            ),
+            MovementEvent(
+                card_id=complete.id,
+                card_name=complete.name,
+                at=_dt(2026, 6, 7, 13),
+                event_type="moved",
+                from_list_name="ANALISES PARA PLANEJAMENTO",
+                to_list_name="ANALISES FINALIZADAS",
+            ),
+            MovementEvent(
+                card_id=incomplete.id,
+                card_name=incomplete.name,
+                at=_dt(2026, 6, 8, 10),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=incomplete.id,
+                card_name=incomplete.name,
+                at=_dt(2026, 6, 8, 11),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="ANALISES PARA PLANEJAMENTO",
+            ),
+        ]
+        board = BoardData(
+            id="board1",
+            name="Board",
+            url="",
+            lists={},
+            cards=[complete, incomplete],
+            movements=events,
+        )
+        result = MetricsEngine(self.workflow, now=_dt(2026, 6, 30), month="2026-06").calculate(
+            board
+        ).to_dict()
+        analysis = result["analysis_workflow"]
+        self.assertEqual(analysis["analysis_delivered"], 1)
+        self.assertEqual(analysis["analysis_in_planning_wip"], 1)
+        self.assertEqual(analysis["descricao_completa_count"], 1)
+        self.assertEqual(analysis["descricao_completa_pct"], 50.0)
 
     def _board(self, card: TrelloCard, movements: list[MovementEvent]) -> BoardData:
         return BoardData(
