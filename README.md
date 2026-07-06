@@ -104,6 +104,37 @@ Push para GitLab:
 git push gitlab main
 ```
 
+### GitLab CI/CD
+
+Desative o **Auto DevOps** no projeto GitLab: **Settings → CI/CD → Auto DevOps → Disable**.
+
+A pipeline usa `.gitlab-ci.yml` com 3 estagios:
+
+- `test` — roda pytest
+- `build` — valida a imagem Docker (sem Container Registry)
+- `deploy` — opcional, via SSH na VPS
+
+Variaveis CI/CD para deploy automatico (**Settings → CI/CD → Variables**):
+
+| Variavel | Exemplo |
+|---|---|
+| `SSH_PRIVATE_KEY` | chave privada SSH da VPS (tipo File ou Variable, masked) |
+| `VPS_HOST` | IP ou dominio da VPS |
+| `VPS_USER` | `root` ou usuario deploy |
+| `VPS_SSH_PORT` | `22` (opcional) |
+| `DEPLOY_PATH` | `/opt/trello-analytics` (opcional) |
+| `APP_URL` | `http://seu-dominio:8080` (opcional) |
+
+Na VPS, clone o repo uma vez antes do primeiro deploy:
+
+```bash
+git clone ssh://git@git.intgest.com.br:10022/root/trello-analytics.git /opt/trello-analytics
+cd /opt/trello-analytics
+cp .env.example .env
+# configure .env
+docker compose up -d --build
+```
+
 ### Endpoints web
 
 ```text

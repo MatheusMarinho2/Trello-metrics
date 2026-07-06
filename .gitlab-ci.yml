@@ -1,0 +1,70 @@
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+
+default:
+  interruptible: true
+
+.test_template: &test_template
+  stage: test
+  image: python:3.12-slim-bookworm
+  cache:
+    key: pip-${CI_COMMIT_REF_SLUG}
+    paths:
+      - .cache/pip
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends libfreetype6 libpng16-16
+    - pip install --quiet -r requirements.txt pytest
+  script:
+    - pytest tests/ -q
+
+test:
+  <<: *test_template
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+build:
+  stage: build
+  image: docker:27-cli
+  services:
+    - docker:27-dind
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - docker build --pull -t trello-analytics:${CI_COMMIT_SHORT_SHA} .
+    - docker image inspect trello-analytics:${CI_COMMIT_SHORT_SHA} > /dev/null
+
+deploy:
+  stage: deploy
+  image: alpine:3.21
+  needs:
+    - job: build
+      optional: false
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $VPS_HOST != null && $SSH_PRIVATE_KEY != null
+  before_script:
+    - apk add --no-cache openssh-client git
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+    - chmod 600 ~/.ssh/id_ed25519
+    - ssh-keyscan -p "${VPS_SSH_PORT:-22}" "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+  script:
+    - |
+      ssh -p "${VPS_SSH_PORT:-22}" -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new \
+        "${VPS_USER}@${VPS_HOST}" \
+        "cd ${DEPLOY_PATH:-/opt/trello-analytics} && \
+         git fetch origin && git reset --hard origin/${CI_DEFAULT_BRANCH} && \
+         docker compose pull 2>/dev/null || true && \
+         docker compose up -d --build && \
+         docker compose ps"
+  environment:
+    name: production
+    url: $APP_URL
