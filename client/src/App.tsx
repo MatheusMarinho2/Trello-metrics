@@ -34,6 +34,7 @@ import {
   listCollaborators,
   listReports,
   login,
+  syncCollaboratorsFromTrello,
   updateCollaborator,
 } from "./api/client";
 import { LoadingOverlay } from "./components/LoadingOverlay";
@@ -41,6 +42,7 @@ import { HelpTip } from "./components/HelpTip";
 import {
   REPORT_PREVIEW_SECTIONS,
   TAB_DESCRIPTIONS,
+  allowedSectionsForReport,
 } from "./lib/reportLayouts";
 import type { AIProvider, Collaborator, GenerateReportPayload, GeneratedReport, ReportOptions, ReportType } from "./types/report";
 import {
@@ -105,6 +107,7 @@ function App() {
   const [sourceJson, setSourceJson] = useState("");
   const [collaboratorName, setCollaboratorName] = useState("");
   const [newCollaboratorName, setNewCollaboratorName] = useState("");
+  const [syncingCollaborators, setSyncingCollaborators] = useState(false);
   const [metricKeys, setMetricKeys] = useState<string[]>(["team_summary", "flow", "sla"]);
 
   const [aiEnabled, setAiEnabled] = useState(false);
@@ -212,8 +215,8 @@ function App() {
         history_months: historyMonths,
         timezone: "America/Sao_Paulo",
         include_templates: false,
-        collaborator_name: collaboratorName,
-        metric_keys: metricKeys,
+        collaborator_name: collaboratorName || undefined,
+        metric_keys: activeTab === "specific_metrics" ? metricKeys : undefined,
         trello: {
           board_id: boardId,
           api_key: trelloApiKey,
@@ -276,6 +279,36 @@ function App() {
       setNewCollaboratorName("");
     } catch (err) {
       setError(errorMessage(err));
+    }
+  }
+
+  async function handleSyncCollaborators() {
+    if (!useLiveApi) {
+      setError("Ative a API do Trello para sincronizar colaboradores.");
+      return;
+    }
+    setError("");
+    setSyncingCollaborators(true);
+    setLoadingLabel("Sincronizando colaboradores do Trello");
+    setLoading(true);
+    try {
+      const result = await syncCollaboratorsFromTrello(token, {
+        board_id: boardId || undefined,
+        api_key: trelloApiKey || undefined,
+        token: trelloToken || undefined,
+      });
+      setCollaborators(
+        [...result.collaborators].sort((a, b) => a.name.localeCompare(b.name)),
+      );
+      if (!collaboratorName && result.collaborators.length > 0) {
+        const firstActive = result.collaborators.find((item) => item.active);
+        if (firstActive) setCollaboratorName(firstActive.name);
+      }
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSyncingCollaborators(false);
+      setLoading(false);
     }
   }
 
@@ -568,6 +601,15 @@ function App() {
                 Adicionar
               </button>
             </div>
+            <button
+              type="button"
+              className="sync-collaborators-button"
+              disabled={!useLiveApi || syncingCollaborators}
+              onClick={() => void handleSyncCollaborators()}
+            >
+              <RefreshCw size={16} className={syncingCollaborators ? "spin" : undefined} />
+              Sincronizar do Trello
+            </button>
             <div className="collaborator-list">
               {collaborators.map((collaborator) => (
                 <button
@@ -658,7 +700,7 @@ function App() {
 
 function KpiStrip({ report }: { report: GeneratedReport }) {
   const metrics = report.filtered_metrics ?? {};
-  const allowed = REPORT_PREVIEW_SECTIONS[report.report_type] ?? REPORT_PREVIEW_SECTIONS.general;
+  const allowed = allowedSectionsForReport(report.report_type, report.metric_keys);
 
   if (report.report_type === "individual" && metrics.individual_summary) {
     const summary = metrics.individual_summary;
@@ -711,13 +753,13 @@ function KpiStrip({ report }: { report: GeneratedReport }) {
   const flow = metrics.flow?.team ?? {};
   const items = [];
 
-  if (allowed.includes("team_summary")) {
+  if (allowed.has("team_summary")) {
     items.push(
       <Kpi key="delivered" label="Cards entregues" value={team.cards_delivered ?? "-"} term="cards_delivered" />,
       <Kpi key="quality" label="Qualidade" value={team.quality_rate_pct != null ? `${team.quality_rate_pct}%` : "-"} term="quality_rate_pct" />,
     );
   }
-  if (allowed.includes("flow")) {
+  if (allowed.has("flow")) {
     items.push(<Kpi key="wip" label="WIP" value={flow.wip_total ?? "-"} term="wip_total" />);
   }
   items.push(<Kpi key="metricados" label="Metricados" value={overview.total_cards_metricados ?? "-"} term="total_cards_metricados" />);
@@ -766,20 +808,36 @@ function AiAnalysis({ report }: { report: GeneratedReport }) {
 
 function MetricSections({ report }: { report: GeneratedReport }) {
   const metrics = report.filtered_metrics ?? {};
-  const allowed = new Set(REPORT_PREVIEW_SECTIONS[report.report_type] ?? REPORT_PREVIEW_SECTIONS.general);
+  const allowed = allowedSectionsForReport(report.report_type, report.metric_keys);
+  const showCardDossier =
+    report.report_type !== "specific_metrics" || (report.metric_keys ?? []).includes("card_dossier");
 
   if (allowed.has("individual") && metrics.individual_summary) {
+    const collaborator = metrics.collaborators?.[0];
     return (
       <div className="metric-sections">
         <ObjectPanel title="Resumo individual" value={metrics.individual_summary} />
-        {Array.isArray(metrics.role_metrics) && metrics.role_metrics.length > 0 ? (
-          <MetricTable title="Papeis no periodo" rows={metrics.role_metrics} />
+        {collaborator ? (
+          <PersonRoleSections collaborator={collaborator} dossier={metrics.card_dossier} />
+        ) : showCardDossier ? (
+          <CardDossier title="Cards do colaborador" metrics={metrics} />
         ) : null}
-        {Array.isArray(metrics.collaborators) && metrics.collaborators.length > 0 ? (
-          <MetricTable title="Colaborador" rows={metrics.collaborators} />
-        ) : null}
-        <CardDossier title="Cards do colaborador" metrics={metrics} />
       </div>
+    );
+  }
+
+  if (
+    (report.report_type === "developers" && metrics.developers) ||
+    (report.report_type === "testers" && metrics.testers) ||
+    (report.report_type === "requesters" && metrics.requesters)
+  ) {
+    return (
+      <PeopleTabSections
+        report={report}
+        metrics={metrics}
+        allowed={allowed}
+        showCardDossier={showCardDossier}
+      />
     );
   }
 
@@ -826,13 +884,12 @@ function MetricSections({ report }: { report: GeneratedReport }) {
         {allowed.has("alerts") && metrics.sla?.current_alerts ? (
           <MetricTable title="Cards em risco" rows={metrics.sla.current_alerts} />
         ) : null}
-        <CardDossier title="Cards" metrics={metrics} />
+        {showCardDossier ? <CardDossier title="Cards" metrics={metrics} /> : null}
       </div>
     );
   }
 
   const sections = [
-    ["Colaboradores", "collaborators", metrics.collaborators],
     ["Desenvolvedores", "developers", metrics.developers],
     ["Revisores", "reviewers", metrics.reviewers],
     ["Testers", "testers", metrics.testers],
@@ -851,6 +908,9 @@ function MetricSections({ report }: { report: GeneratedReport }) {
           <MetricTable key={title} title={title} rows={rows} />
         ) : null,
       )}
+      {allowed.has("collaborators") && Array.isArray(metrics.collaborators) && metrics.collaborators.length > 0 ? (
+        <CollaboratorsSections collaborators={metrics.collaborators} dossier={metrics.card_dossier} />
+      ) : null}
       {allowed.has("team_summary") && metrics.team_summary ? (
         <ObjectPanel title="Resumo do time" value={metrics.team_summary} />
       ) : null}
@@ -869,8 +929,134 @@ function MetricSections({ report }: { report: GeneratedReport }) {
       {allowed.has("discipline") && metrics.process_discipline ? (
         <ObjectPanel title="Disciplina de processo" value={metrics.process_discipline} />
       ) : null}
-      <CardDossier title="Cards" metrics={metrics} />
+      {showCardDossier && !metrics.collaborators?.length ? (
+        <CardDossier title="Cards" metrics={metrics} />
+      ) : null}
     </div>
+  );
+}
+
+const ROLE_DESCRIPTIONS: Record<string, string> = {
+  solicitante: "Demandas criadas, planejamento, aprovacoes e entregas solicitadas no periodo.",
+  desenvolvedor: "Entregas, pontos Fibonacci, retrabalhos, SLA e tempo em desenvolvimento.",
+  revisor_par: "Revisoes em par, retornos e qualidade antes do teste formal.",
+  revisor: "Revisoes formais, retornos e conformidade antes do deploy.",
+  tester: "Testes, primeira passagem, retestes, retornos e problemas evitados.",
+};
+
+function PeopleTabSections({
+  report,
+  metrics,
+  allowed,
+  showCardDossier,
+}: {
+  report: GeneratedReport;
+  metrics: Record<string, any>;
+  allowed: Set<string>;
+  showCardDossier: boolean;
+}) {
+  const config =
+    report.report_type === "developers"
+      ? { title: "Desenvolvedor", rows: metrics.developers, bucket: "by_developer" as const }
+      : report.report_type === "testers"
+        ? { title: "Tester", rows: metrics.testers, bucket: "by_tester" as const }
+        : { title: "Solicitante", rows: metrics.requesters, bucket: "by_solicitante" as const };
+
+  return (
+    <div className="metric-sections">
+      {metrics.role_summary ? (
+        <ObjectPanel title="Resumo do relatorio" value={metrics.role_summary} />
+      ) : null}
+      {allowed.has("flow") && metrics.flow?.team ? (
+        <ObjectPanel title="Fluxo do time" value={metrics.flow.team} />
+      ) : null}
+      {allowed.has("quality_gates") && metrics.quality_gates ? (
+        <ObjectPanel title="Dupla revisao" value={metrics.quality_gates} />
+      ) : null}
+      {allowed.has("fibonacci") && metrics.fibonacci_points?.by_developer ? (
+        <MetricTable title="Pontos Fibonacci" rows={metrics.fibonacci_points.by_developer} />
+      ) : null}
+      {allowed.has("sla_dev") && metrics.sla?.by_developer ? (
+        <MetricTable title="SLA por desenvolvedor" rows={metrics.sla.by_developer} />
+      ) : null}
+      {Array.isArray(config.rows)
+        ? config.rows.map((person: Record<string, any>) => (
+            <section className="person-section" key={person.name ?? person.id}>
+              <h3>
+                {config.title}: {person.name}
+              </h3>
+              <ObjectPanel title="Metricas" value={person} />
+              <CardDossier
+                title="Cards no periodo"
+                metrics={metrics}
+                cards={dossierCardsForPerson(metrics.card_dossier, config.bucket, person.name, person.aliases)}
+              />
+            </section>
+          ))
+        : null}
+      {showCardDossier && !config.rows?.length ? <CardDossier title="Cards" metrics={metrics} /> : null}
+    </div>
+  );
+}
+
+function CollaboratorsSections({
+  collaborators,
+  dossier,
+}: {
+  collaborators: Array<Record<string, any>>;
+  dossier?: Record<string, any>;
+}) {
+  return (
+    <section className="collaborators-sections">
+      <h3>Colaboradores</h3>
+      <p className="table-description">
+        Cada colaborador com subsecoes por papel (solicitante, desenvolvedor, revisor, revisor em par, tester) e
+        cards detalhados com movimentacao.
+      </p>
+      {collaborators.map((collaborator) => (
+        <section className="person-section" key={collaborator.id ?? collaborator.name}>
+          <h3>Colaborador: {collaborator.name}</h3>
+          {collaborator.summary ? <ObjectPanel title="Resumo" value={collaborator.summary} /> : null}
+          <PersonRoleSections collaborator={collaborator} dossier={dossier} />
+        </section>
+      ))}
+    </section>
+  );
+}
+
+function PersonRoleSections({
+  collaborator,
+  dossier,
+}: {
+  collaborator: Record<string, any>;
+  dossier?: Record<string, any>;
+}) {
+  const roles = Array.isArray(collaborator.role_metrics) ? collaborator.role_metrics : [];
+  if (!roles.length) {
+    return <CardDossier title="Cards" metrics={{ collaborators: [collaborator], card_dossier: dossier }} />;
+  }
+
+  return (
+    <>
+      {roles.map((role: Record<string, any>) => {
+        const roleKey = String(role.role_key ?? "");
+        const roleLabel = role.role_label ?? metricLabel(roleKey);
+        const cards = cardsForCollaboratorRole(collaborator, roleKey).map((card) =>
+          mergeCardWithDossier(card, dossier),
+        );
+        return (
+          <section className="role-subsection" key={`${collaborator.name}-${roleKey}`}>
+            <h4>{roleLabel}</h4>
+            {ROLE_DESCRIPTIONS[roleKey] ? <p className="table-description">{ROLE_DESCRIPTIONS[roleKey]}</p> : null}
+            <ObjectPanel title="Metricas do papel" value={role} />
+            {Array.isArray(role.process_times) && role.process_times.length > 0 ? (
+              <MetricTable title="Tempo por etapa" rows={role.process_times} />
+            ) : null}
+            <CardDossier title={`Cards como ${roleLabel}`} metrics={{ card_dossier: dossier }} cards={cards} />
+          </section>
+        );
+      })}
+    </>
   );
 }
 
@@ -909,7 +1095,8 @@ function MetricTable({ title, rows }: { title: string; rows: Array<Record<string
   const tableId = SECTION_TABLE_IDS[title];
   const description = tableId ? tableDescription(tableId) : "";
   const columns = Object.keys(rows[0] ?? {})
-    .filter((key) => isSimple(rows[0][key]))
+    .filter((key) => isSimple(rows[0][key]) || key === "top_bottleneck")
+    .filter((key) => !["id", "card_id", "scope"].includes(key))
     .slice(0, 8);
 
   return (
@@ -971,8 +1158,8 @@ function ObjectPanel({ title, value }: { title: string; value: Record<string, an
       <h3>{title}</h3>
       <div className="object-grid">
         {Object.entries(value)
-          .filter(([, item]) => isSimple(item))
-          .slice(0, 12)
+          .filter(([key, item]) => isSimple(item) && !["id", "card_id", "scope"].includes(key))
+          .slice(0, 16)
           .map(([key, item]) => (
             <div key={key}>
               <span>
@@ -987,8 +1174,16 @@ function ObjectPanel({ title, value }: { title: string; value: Record<string, an
   );
 }
 
-function CardDossier({ title, metrics }: { title: string; metrics: Record<string, any> }) {
-  const cards = collectCards(metrics).slice(0, 40);
+function CardDossier({
+  title,
+  metrics,
+  cards: explicitCards,
+}: {
+  title: string;
+  metrics: Record<string, any>;
+  cards?: Array<Record<string, any>>;
+}) {
+  const cards = (explicitCards ?? collectCards(metrics)).slice(0, 40);
   if (!cards.length) return null;
 
   return (
@@ -1037,6 +1232,7 @@ function CardDetailBody({ card }: { card: Record<string, any> }) {
   ].filter((key) => card[key] !== undefined && card[key] !== null && card[key] !== "");
   const etapas = Array.isArray(card.etapas) ? card.etapas.slice(0, 10) : [];
   const retornos = Array.isArray(card.retornos) ? card.retornos.slice(0, 6) : [];
+  const involvements = Array.isArray(card.collaborator_involvements) ? card.collaborator_involvements : [];
   const descricao = isRecord(card.descricao)
     ? Object.entries(card.descricao).filter(([, value]) => value)
     : [];
@@ -1061,6 +1257,36 @@ function CardDetailBody({ card }: { card: Record<string, any> }) {
               <strong>{metricLabel(key)}</strong>
               {String(value)}
             </p>
+          ))}
+        </div>
+      ) : null}
+
+      {involvements.length ? (
+        <div className="mini-table-scroll">
+          {involvements.map((involvement: Record<string, any>, involvementIndex: number) => (
+            <div key={`${involvement.role_key ?? involvementIndex}`}>
+              <strong>{`Movimentacao (${involvement.role_label ?? involvement.role_key ?? "papel"})`}</strong>
+              {Array.isArray(involvement.stages) && involvement.stages.length ? (
+                <table className="mini-table">
+                  <thead>
+                    <tr>
+                      <th>Etapa</th>
+                      <th>Lista</th>
+                      <th>Tempo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {involvement.stages.slice(0, 12).map((stage: Record<string, any>, index: number) => (
+                      <tr key={`${stage.group ?? stage.title}-${index}`}>
+                        <td>{formatCell(stage.title ?? stage.group)}</td>
+                        <td>{formatCell(stage.list_name)}</td>
+                        <td>{formatCell(stage.hours_human ?? stage.hours)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : null}
+            </div>
           ))}
         </div>
       ) : null}
@@ -1170,6 +1396,82 @@ function collectNamedCardBucket(
   });
 }
 
+function cardsForCollaboratorRole(collaborator: Record<string, any>, roleKey: string): Array<Record<string, any>> {
+  const cards: Array<Record<string, any>> = [];
+  for (const card of collaborator.cards ?? []) {
+    if (!isRecord(card)) continue;
+    const involvements = Array.isArray(card.collaborator_involvements) ? card.collaborator_involvements : [];
+    if (involvements.some((item) => isRecord(item) && item.role_key === roleKey)) {
+      cards.push(card);
+    }
+  }
+  return cards;
+}
+
+function dossierCardsForPerson(
+  dossier: unknown,
+  bucketName: "by_developer" | "by_solicitante" | "by_tester",
+  personName: string,
+  aliases?: string[],
+): Array<Record<string, any>> {
+  if (!isRecord(dossier) || !isRecord(dossier[bucketName])) return [];
+  const bucket = dossier[bucketName] as Record<string, unknown>;
+  const key = matchDossierBucketKey(bucket, personName, aliases);
+  if (!key) return [];
+  const entry = bucket[key];
+  if (bucketName === "by_developer" && isRecord(entry)) {
+    return [...(Array.isArray(entry.tarefas_normais) ? entry.tarefas_normais : []), ...(Array.isArray(entry.cards_analise) ? entry.cards_analise : [])].filter(isRecord);
+  }
+  return Array.isArray(entry) ? entry.filter(isRecord) : [];
+}
+
+function mergeCardWithDossier(card: Record<string, any>, dossier: unknown): Record<string, any> {
+  const indexed = indexDossierCards(dossier);
+  const cardId = String(card.card_id ?? "");
+  const full = cardId ? indexed[cardId] : undefined;
+  return full ? { ...full, ...card } : card;
+}
+
+function indexDossierCards(dossier: unknown): Record<string, Record<string, any>> {
+  const indexed: Record<string, Record<string, any>> = {};
+  if (!isRecord(dossier)) return indexed;
+  const push = (value: unknown) => {
+    if (!isRecord(value)) return;
+    const cardId = String(value.card_id ?? "");
+    if (cardId) indexed[cardId] = value;
+  };
+  collectDeveloperCards(dossier.by_developer, push);
+  collectNamedCardBucket(dossier.by_solicitante, push);
+  collectNamedCardBucket(dossier.by_tester, push);
+  if (Array.isArray(dossier.cards)) dossier.cards.forEach(push);
+  return indexed;
+}
+
+function matchDossierBucketKey(
+  bucket: Record<string, unknown>,
+  personName: string,
+  aliases: string[] = [],
+): string | null {
+  const candidates = [personName, ...aliases];
+  for (const bucketKey of Object.keys(bucket)) {
+    if (candidates.some((candidate) => namesMatch(candidate, bucketKey))) {
+      return bucketKey;
+    }
+  }
+  return null;
+}
+
+function namesMatch(left: string, right: string): boolean {
+  return normalizePersonKey(left) === normalizePersonKey(right);
+}
+
+function normalizePersonKey(value: string): string {
+  return value
+    .replace(/^\s*(?:REVISOR\s+EM\s+PAR|REVISOR\/PAR|DESENVOLVEDOR|SOLICITANTE|TESTER|REV|DEV|RP|R|D|T|S)\s*[-:/]\s*/i, "")
+    .trim()
+    .toLowerCase();
+}
+
 function cardIndex(card: Record<string, any>, index: number): string {
   const idShort = card.id_short ?? card.idShort;
   return idShort ? `#${idShort}` : `#${index + 1}`;
@@ -1229,6 +1531,7 @@ function humanize(value: string): string {
 }
 
 function isSimple(value: unknown): boolean {
+  if (isRecord(value)) return false;
   return value == null || ["string", "number", "boolean"].includes(typeof value);
 }
 
@@ -1239,6 +1542,21 @@ function formatCell(value: unknown, key?: string): string {
     return Number.isInteger(value) ? `${value}` : value.toFixed(1);
   }
   if (typeof value === "boolean") return value ? "Sim" : "Nao";
+  if (key === "top_bottleneck" && isRecord(value)) {
+    const title = String(value.title ?? value.group ?? "-");
+    const hours = value.avg_human ?? value.avg_hours;
+    return hours != null && hours !== "" ? `${title} (${hours})` : title;
+  }
+  if (key === "kind" && typeof value === "string") {
+    return ({ problem: "Problema", analysis: "Analise", unknown: "Nao classificado" } as Record<string, string>)[value] ?? value;
+  }
+  if (key === "scope" && typeof value === "string") {
+    return ({ developers: "Desenvolvedores", testers: "Testers", requesters: "Solicitantes" } as Record<string, string>)[value] ?? metricLabel(value);
+  }
+  if (isRecord(value)) {
+    const title = value.title ?? value.name ?? value.card_name;
+    if (title) return String(title);
+  }
   return String(value);
 }
 

@@ -99,6 +99,8 @@ class CardTimeline:
     double_review_recommended: bool = False
     return_dev_by_teste_count: int = 0
     return_dev_by_revisao_count: int = 0
+    gestor_premature_approval: bool = False
+    dev_to_sup_return_count: int = 0
     developer_penalty_return_count: int = 0
     test_return_missing_reason_count: int = 0
     test_cycles: int = 0
@@ -196,6 +198,8 @@ class CardTimeline:
             "peer_review_returns": self.peer_review_returns,
             "return_dev_count": self.return_dev_count,
             "return_sup_count": self.return_sup_count,
+            "gestor_premature_approval": self.gestor_premature_approval,
+            "dev_to_sup_return_count": self.dev_to_sup_return_count,
             "accepted_without_dev_return": self.accepted_without_dev_return,
             "peer_review_sent_back": self.peer_review_sent_back,
             "lead_time_hours": self.lead_time_hours,
@@ -307,11 +311,15 @@ def _build_one(
             timeline.return_dev_count += 1
         if target == "return_support":
             timeline.return_sup_count += 1
+            if source == "development":
+                timeline.dev_to_sup_return_count += 1
         if target == "paused":
             timeline.pause_count += 1
         if source == "peer_review" and target == "development":
             timeline.peer_review_returns += 1
             timeline.peer_review_sent_back = True
+
+    timeline.gestor_premature_approval = _detect_gestor_premature_approval(timeline.transitions)
 
     if timeline.delivered_at:
         had_dev_return_before_delivery = _had_return_before(
@@ -679,6 +687,18 @@ def _list_spans(
             }
         )
     return spans
+
+
+def _detect_gestor_premature_approval(transitions: list[tuple[str, str]]) -> bool:
+    """Card foi aprovado pelo gestor (approval->development) e depois voltou de
+    em andamento para retorno suporte, indicando planejamento/aprovacao fraca."""
+    had_gestor_approval = any(
+        source == "approval" and target == "development" for source, target in transitions
+    )
+    had_dev_to_sup = any(
+        source == "development" and target == "return_support" for source, target in transitions
+    )
+    return had_gestor_approval and had_dev_to_sup
 
 
 def _had_return_before(

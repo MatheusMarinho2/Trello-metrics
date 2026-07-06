@@ -44,6 +44,31 @@ button {
 .report-preview,
 .history-panel,
 .analysis-panel,
+.person-section,
+.role-subsection,
+.collaborators-sections {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid #d8e6f3;
+  border-radius: 12px;
+  background: #fbfdff;
+}
+
+.person-section h3,
+.collaborators-sections > h3 {
+  margin: 0;
+  color: #0f2744;
+  font-size: 1rem;
+}
+
+.role-subsection h4 {
+  margin: 0;
+  color: #2563eb;
+  font-size: 0.92rem;
+}
+
 .collaborator-panel,
 .table-block,
 .object-panel {
@@ -382,6 +407,36 @@ select:disabled {
   font-weight: 800;
 }
 
+.sync-collaborators-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid #bfd4ea;
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: #1d4f73;
+  background: #f4f9fd;
+  font-weight: 700;
+}
+
+.sync-collaborators-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sync-collaborators-button .spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .collaborator-list {
   display: grid;
   gap: 7px;
@@ -555,12 +610,9 @@ select:disabled {
   height: 14px;
 }
 
-.help-tip::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 8px);
-  transform: translateX(-50%);
+.help-tip-popover {
+  position: fixed;
+  z-index: 9999;
   width: max-content;
   max-width: 260px;
   padding: 8px 10px;
@@ -571,15 +623,7 @@ select:disabled {
   font-weight: 500;
   line-height: 1.4;
   box-shadow: 0 8px 24px rgba(16, 37, 58, 0.18);
-  opacity: 0;
   pointer-events: none;
-  transition: opacity 0.15s ease;
-  z-index: 20;
-}
-
-.help-tip:hover::after,
-.help-tip:focus::after {
-  opacity: 1;
 }
 
 .table-block th .help-tip,

@@ -9,7 +9,14 @@ type MetricDefinitions = {
 const defs = definitions as MetricDefinitions;
 
 export function metricLabel(key: string): string {
-  return defs.labels[key] ?? key.replaceAll("_", " ");
+  if (defs.labels[key]) return defs.labels[key];
+  return key
+    .replace(/_pct$/i, " (%)")
+    .replace(/_human$/i, "")
+    .replace(/_hours$/i, " (horas)")
+    .replace(/_count$/i, "")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 export function metricDescription(key: string): string {

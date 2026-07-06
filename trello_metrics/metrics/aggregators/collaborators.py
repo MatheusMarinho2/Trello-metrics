@@ -422,7 +422,9 @@ def _add_role_specific_metrics(
 
     elif role_key == "solicitante":
         extra["requester_delivered"] += 1
-        if timeline.return_sup_count == 0:
+        if timeline.gestor_premature_approval:
+            extra["gestor_premature_approvals"] += 1
+        if timeline.return_sup_count == 0 and not timeline.gestor_premature_approval:
             extra["without_sup_return"] += 1
         if timeline.group_hours.get("production", 0) > 0 or timeline.kind == "problem":
             extra["in_production"] += 1
@@ -488,9 +490,16 @@ def _extra_to_dict(
     if role_key == "solicitante":
         delivered_count = int(extra.get("requester_delivered", 0))
         without_return = int(extra.get("without_sup_return", 0))
+        gestor_premature = int(extra.get("gestor_premature_approvals", 0))
         return {
             "requester_delivered": delivered_count,
             "in_production": int(extra.get("in_production", 0)),
+            "gestor_premature_approvals": gestor_premature,
+            "gestor_approval_quality_pct": (
+                round(100 * (delivered_count - gestor_premature) / delivered_count, 1)
+                if delivered_count
+                else 0.0
+            ),
             "planning_ok_rate_pct": (
                 round(100 * without_return / delivered_count, 1) if delivered_count else 0.0
             ),

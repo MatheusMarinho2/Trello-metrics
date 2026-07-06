@@ -99,6 +99,32 @@ export async function updateCollaborator(
   });
 }
 
+export interface SyncCollaboratorsPayload {
+  board_id?: string;
+  api_key?: string;
+  token?: string;
+}
+
+export interface SyncCollaboratorsResult {
+  created: number;
+  updated: number;
+  discovered: number;
+  total: number;
+  board_id: string;
+  board_name: string;
+  collaborators: Collaborator[];
+}
+
+export async function syncCollaboratorsFromTrello(
+  authToken: string,
+  payload: SyncCollaboratorsPayload,
+): Promise<SyncCollaboratorsResult> {
+  return apiFetch("/collaborators/sync/", authToken, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 async function apiFetch<T>(
   path: string,
   token: string,

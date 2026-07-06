@@ -8,6 +8,11 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = BASE_DIR.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(BASE_DIR))
+
+from trello_metrics.config import load_env_file
+
+load_env_file(PROJECT_ROOT / ".env")
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-only-intgest-reports-secret")
 DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"

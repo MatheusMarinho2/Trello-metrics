@@ -15,12 +15,23 @@ class RequesterAccumulator:
     cards_delivered: int = 0
     in_production: int = 0
     without_sup_return: int = 0
+    gestor_premature_approvals: int = 0
     planning_hours_total: float = 0.0
     approval_hours_total: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         planning_ok_rate = (
             round(100 * self.without_sup_return / self.cards_delivered, 1)
+            if self.cards_delivered
+            else 0.0
+        )
+        gestor_quality_rate = (
+            round(
+                100
+                * (self.cards_delivered - self.gestor_premature_approvals)
+                / self.cards_delivered,
+                1,
+            )
             if self.cards_delivered
             else 0.0
         )
@@ -31,6 +42,8 @@ class RequesterAccumulator:
             "cards_created": self.cards_created,
             "cards_delivered": self.cards_delivered,
             "in_production": self.in_production,
+            "gestor_premature_approvals": self.gestor_premature_approvals,
+            "gestor_approval_quality_pct": gestor_quality_rate,
             "planning_ok_rate_pct": planning_ok_rate,
             "avg_planning_hours": round(avg_planning, 2),
             "avg_planning_human": human_hours(avg_planning),
@@ -61,7 +74,9 @@ def aggregate_requesters(
 
         if timeline.is_delivered_in(period):
             acc.cards_delivered += 1
-            if timeline.return_sup_count == 0:
+            if timeline.gestor_premature_approval:
+                acc.gestor_premature_approvals += 1
+            if timeline.return_sup_count == 0 and not timeline.gestor_premature_approval:
                 acc.without_sup_return += 1
             if timeline.group_hours.get("production", 0) > 0 or timeline.kind == "problem":
                 acc.in_production += 1

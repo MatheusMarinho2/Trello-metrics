@@ -52,6 +52,37 @@ export const REPORT_PREVIEW_SECTIONS: Record<
   specific_metrics: ["team_summary", "sla_dev", "sla_cards", "bottlenecks", "flow", "priority", "dora"],
 };
 
+export const METRIC_KEY_SECTIONS: Record<string, Array<(typeof REPORT_PREVIEW_SECTIONS.general)[number]>> = {
+  team_summary: ["team_summary"],
+  flow: ["flow"],
+  developers: ["role_metrics", "developers", "fibonacci", "flow", "quality_gates", "sla_dev"],
+  testers: ["role_metrics", "testers", "quality_gates"],
+  requesters: ["role_metrics", "requesters", "projects"],
+  sla: ["sla_dev", "sla_cards", "alerts"],
+  bottlenecks: ["bottlenecks"],
+  card_dossier: [],
+  priority: ["priority"],
+  dora: ["dora"],
+  quality_gates: ["quality_gates"],
+  discipline: ["discipline"],
+};
+
+export function allowedSectionsForReport(
+  reportType: ReportType,
+  metricKeys?: string[],
+): Set<(typeof REPORT_PREVIEW_SECTIONS.general)[number]> {
+  if (reportType === "specific_metrics" && metricKeys?.length) {
+    const allowed = new Set<(typeof REPORT_PREVIEW_SECTIONS.general)[number]>();
+    for (const key of metricKeys) {
+      for (const section of METRIC_KEY_SECTIONS[key] ?? []) {
+        allowed.add(section);
+      }
+    }
+    return allowed;
+  }
+  return new Set(REPORT_PREVIEW_SECTIONS[reportType] ?? REPORT_PREVIEW_SECTIONS.general);
+}
+
 export const TAB_DESCRIPTIONS: Record<ReportType, string> = {
   general: "Visao completa do time: entregas, fluxo, qualidade, pessoas e dossie de cards.",
   individual: "Perfil consolidado de um colaborador e cards em que atuou no periodo.",

@@ -932,6 +932,89 @@ class MetricsEngineTest(unittest.TestCase):
         self.assertEqual(may_row["fibonacci_normal"], 5)
         self.assertEqual(june_row["fibonacci_normal"], 0)
 
+    def test_gestor_premature_approval_detected(self) -> None:
+        card = TrelloCard(
+            id="card_gestor",
+            name="PM CLIENTE / Planejamento fraco",
+            current_list_id="return_sup",
+            current_list_name="RETORNO (SUP)",
+            created_at=_dt(2026, 6, 3),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.A",
+                "Nível": "3",
+                "Sistema": "Executivo",
+                "Solicitante": "S-Solic.A",
+            },
+        )
+        events = [
+            MovementEvent(
+                card_id="card_gestor",
+                card_name=card.name,
+                at=_dt(2026, 6, 4),
+                event_type="moved",
+                from_list_name="AGUARDANDO APROVAÇÃO",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id="card_gestor",
+                card_name=card.name,
+                at=_dt(2026, 6, 12),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="RETORNO (SUP)",
+            ),
+            MovementEvent(
+                card_id="card_gestor",
+                card_name=card.name,
+                at=_dt(2026, 6, 20),
+                event_type="moved",
+                from_list_name="EM TESTE",
+                to_list_name="AGUARDANDO PRODUÇÃO (EXECUTIVO)",
+            ),
+        ]
+        board = self._board(card, events)
+        timelines = build_card_timelines(
+            board.cards,
+            {"card_gestor": events},
+            self.workflow,
+            _dt(2026, 6, 30),
+        )
+        self.assertTrue(timelines[0].gestor_premature_approval)
+        self.assertEqual(timelines[0].dev_to_sup_return_count, 1)
+
+        result = MetricsEngine(
+            self.workflow,
+            now=_dt(2026, 6, 30),
+            month="2026-06",
+        ).calculate(board).to_dict()
+        requester = next(
+            row for row in result["requesters"] if row["name"] == "S-Solic.A"
+        )
+        self.assertEqual(requester["gestor_premature_approvals"], 1)
+        self.assertEqual(requester["planning_ok_rate_pct"], 0.0)
+
+    def test_specific_metrics_filter_keeps_only_selected_keys(self) -> None:
+        from trello_metrics.metrics.report_filter import filter_metrics
+
+        full = {
+            "board": {"name": "Board"},
+            "period": {"month": "2026-06"},
+            "team_summary": {"cards_delivered": 3},
+            "developers": [{"name": "Dev"}],
+            "requesters": [{"name": "Sol"}],
+            "flow": {"team": {"wip_total": 2}},
+        }
+        filtered = filter_metrics(
+            full,
+            report_type="specific_metrics",
+            metric_keys=["team_summary", "flow"],
+        )
+        self.assertIn("team_summary", filtered)
+        self.assertIn("flow", filtered)
+        self.assertNotIn("developers", filtered)
+        self.assertNotIn("requesters", filtered)
+        self.assertEqual(filtered["metric_keys"], ["team_summary", "flow"])
+
     def _board(self, card: TrelloCard, movements: list[MovementEvent]) -> BoardData:
         return BoardData(
             id="board1",
