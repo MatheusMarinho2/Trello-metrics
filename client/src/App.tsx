@@ -148,6 +148,8 @@ function App() {
   const [collaboratorName, setCollaboratorName] = useState("");
   const [newCollaboratorName, setNewCollaboratorName] = useState("");
   const [syncingCollaborators, setSyncingCollaborators] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const historyMenuRef = useRef<HTMLDivElement>(null);
   const [metricKeys, setMetricKeys] = useState<string[]>(["team_summary", "flow", "sla"]);
 
   const [aiEnabled, setAiEnabled] = useState(false);
@@ -163,7 +165,31 @@ function App() {
   useEffect(() => {
     if (!token) return;
     void loadHistoryForTab(activeTab);
+    setHistoryExpanded(false);
   }, [activeTab, token]);
+
+  useEffect(() => {
+    if (!historyExpanded) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!historyMenuRef.current?.contains(event.target as Node)) {
+        setHistoryExpanded(false);
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setHistoryExpanded(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [historyExpanded]);
 
   async function bootstrap(activeToken: string) {
     setLoading(true);
@@ -472,6 +498,75 @@ function App() {
           </div>
         </div>
         <div className="topbar-actions">
+          <div
+            className={`history-menu${reports.length > 0 ? " has-reports" : ""}`}
+            ref={historyMenuRef}
+          >
+            <button
+              type="button"
+              className={`history-trigger${historyExpanded ? " open" : ""}`}
+              onClick={() => setHistoryExpanded((open) => !open)}
+              aria-expanded={historyExpanded}
+              aria-haspopup="dialog"
+              title={`Relatorios salvos da aba ${activeTabLabel}`}
+            >
+              <ClipboardList size={17} />
+              <span className="history-trigger-label">Historico</span>
+              <span className="history-count">{reports.length}</span>
+              <ChevronDown size={15} className="history-chevron" />
+            </button>
+            {historyExpanded ? (
+              <div className="history-dropdown" role="dialog" aria-label="Historico de relatorios">
+                <div className="history-dropdown-header">
+                  <div>
+                    <strong>Relatorios salvos</strong>
+                    <span>{activeTabLabel}</span>
+                  </div>
+                  {reports.length > 0 ? (
+                    <button
+                      type="button"
+                      className="ghost-btn danger"
+                      onClick={() => void handleDeleteAllReports()}
+                      title="Excluir todos os relatorios desta aba"
+                    >
+                      <Trash2 size={14} /> Limpar
+                    </button>
+                  ) : null}
+                </div>
+                <div className="history-list">
+                  {reports.length > 0 ? (
+                    reports.map((report) => (
+                      <div
+                        key={report.id}
+                        className={currentReport?.id === report.id ? "history-item active" : "history-item"}
+                        onClick={() => {
+                          void handleSelectReport(report);
+                          setHistoryExpanded(false);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        <div className="history-item-info">
+                          <strong>{report.title}</strong>
+                          <span>{formatDate(report.created_at)}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="history-item-delete"
+                          onClick={(event) => void handleDeleteReport(report, event)}
+                          title="Excluir este relatorio"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="history-empty">Nenhum relatorio salvo nesta aba ainda.</p>
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </div>
           <span className="user-chip">{username}</span>
           <button className="icon-button" type="button" onClick={() => void bootstrap(token)} title="Atualizar">
             <RefreshCw size={18} />
@@ -755,47 +850,6 @@ function App() {
             </div>
           )}
         </section>
-
-        <aside className="history-panel">
-          <div className="panel-title compact">
-            <ClipboardList size={18} />
-            <h2>Historico {activeTabLabel}</h2>
-            {reports.length > 0 ? (
-              <button
-                type="button"
-                className="ghost-btn danger"
-                onClick={() => void handleDeleteAllReports()}
-                title="Excluir todos os relatorios desta aba"
-              >
-                <Trash2 size={14} /> Limpar tudo
-              </button>
-            ) : null}
-          </div>
-          <div className="history-list">
-            {reports.map((report) => (
-              <div
-                key={report.id}
-                className={currentReport?.id === report.id ? "history-item active" : "history-item"}
-                onClick={() => void handleSelectReport(report)}
-                role="button"
-                tabIndex={0}
-              >
-                <div className="history-item-info">
-                  <strong>{report.title}</strong>
-                  <span>{formatDate(report.created_at)}</span>
-                </div>
-                <button
-                  type="button"
-                  className="history-item-delete"
-                  onClick={(event) => void handleDeleteReport(report, event)}
-                  title="Excluir este relatorio"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </aside>
       </section>
     </main>
   );
