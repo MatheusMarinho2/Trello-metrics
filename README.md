@@ -209,6 +209,11 @@ Abra o `.html` no navegador - arquivo unico, sem servidor.
 O documento `reports/documentacao_metricas_calculos.md` explica cada metrica
 gerada pelo sistema, as fontes de dados e as formulas usadas nos calculos.
 
+### SLA e nivelamento
+
+- [`docs/sla_medicacao_e_niveis.md`](docs/sla_medicacao_e_niveis.md) — como o SLA e medido, tabela por coluna, niveis Fibonacci, analise e retornos por prioridade
+- [`docs/guia_nivelacao_tarefas.md`](docs/guia_nivelacao_tarefas.md) — guia para desenvolvedores nivelarem cards (problema e analise) em projetos Django/regra de negocio
+
 ## Gerar relatorio pelo JSON exportado
 
 ```powershell
@@ -242,8 +247,7 @@ python -m trello_metrics report --source data\trello_board_export.json --output 
 - `AGUARDANDO TESTE (X)` / `AGUARDANDO PRODUCAO (X)` por projeto sao fundidos num unico
   estagio (`waiting_test`/`waiting_production`) para as metricas de gargalo; a quebra
   por lista especifica so aparece na secao "Controle de gestao" do relatorio.
-- SLA: regras por etapa e por nivel Fibonacci ficam em `sla_rules` no `workflow.json`.
-  O relatorio mostra cumprimento geral, por etapa, por desenvolvedor e cards em risco.
+- SLA: regras por etapa, por nivel Fibonacci (Em andamento), por nivel de analise (Analises para planejamento) e por prioridade em retornos; configuracao em `sla_rules` no `workflow.json`. Detalhes em `docs/sla_medicacao_e_niveis.md`.
 - Revisao em par que devolve o card para `EM ANDAMENTO` e um pente-fino de qualidade do
   revisor, **nao** conta como retrabalho do desenvolvedor (isso e contado separadamente
   de `RETORNO (DEV)`/`RETORNO (SUP)`).

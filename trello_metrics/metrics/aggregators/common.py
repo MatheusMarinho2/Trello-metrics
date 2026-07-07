@@ -5,8 +5,10 @@ import statistics
 from datetime import datetime
 from typing import Any, Iterable
 
+from trello_metrics.domain.workflow import WorkflowConfig
 from trello_metrics.metrics.timeline import CardTimeline, StageTimelineEntry
-from trello_metrics.utils.dates import hours_between, human_hours, isoformat
+from trello_metrics.utils.business_hours import duration_hours
+from trello_metrics.utils.dates import human_hours, isoformat
 from trello_metrics.utils.text import normalize_key
 
 
@@ -111,13 +113,17 @@ def first_stage_entry(timeline: CardTimeline, *groups: str) -> StageTimelineEntr
     return None
 
 
-def stage_duration_until(stage: StageTimelineEntry, cap_at: datetime | None) -> float:
+def stage_duration_until(
+    stage: StageTimelineEntry,
+    cap_at: datetime | None,
+    workflow: WorkflowConfig,
+) -> float:
     if not stage.start_at:
         return 0.0
     end_at = stage.end_at or cap_at
     if cap_at and end_at and end_at > cap_at:
         end_at = cap_at
-    return hours_between(stage.start_at, end_at)
+    return duration_hours(stage.start_at, end_at, workflow)
 
 
 def timeline_card_ref(timeline: CardTimeline) -> dict[str, Any]:

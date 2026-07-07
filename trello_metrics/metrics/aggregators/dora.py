@@ -4,6 +4,7 @@ from collections import Counter
 from datetime import timedelta
 from typing import Any
 
+from trello_metrics.domain.workflow import WorkflowConfig
 from trello_metrics.metrics.aggregators.common import (
     is_correction,
     is_high_priority,
@@ -12,7 +13,8 @@ from trello_metrics.metrics.aggregators.common import (
     week_key,
 )
 from trello_metrics.metrics.timeline import CardTimeline, StageTimelineEntry
-from trello_metrics.utils.dates import hours_between, isoformat
+from trello_metrics.utils.business_hours import duration_hours
+from trello_metrics.utils.dates import isoformat
 from trello_metrics.utils.period import MonthPeriod
 
 
@@ -24,6 +26,7 @@ PRODUCTION_DEPLOY_QUEUE_GROUPS = {"waiting_production"}
 def aggregate_dora_metrics(
     timelines: list[CardTimeline],
     period: MonthPeriod,
+    workflow: WorkflowConfig,
     failure_window_days: int = 7,
 ) -> dict[str, Any]:
     deployments = [
@@ -38,7 +41,7 @@ def aggregate_dora_metrics(
     deploy_by_system = Counter(timeline.sistema for timeline, _ in deployments)
     deploy_by_path = Counter(stage.group for _, stage in deployments)
     deploy_lead_values = [
-        hours_between(start, stage.start_at)
+        duration_hours(start, stage.start_at, workflow)
         for timeline, stage in deployments
         if (start := _production_deploy_window_start(timeline, stage))
     ]
@@ -49,7 +52,7 @@ def aggregate_dora_metrics(
         timedelta(days=failure_window_days),
     )
     restore_values = [
-        hours_between(timeline.created_at, timeline.delivered_at)
+        duration_hours(timeline.created_at, timeline.delivered_at, workflow)
         for timeline in timelines
         if timeline.kind == "problem"
         and timeline.is_delivered_in(period)

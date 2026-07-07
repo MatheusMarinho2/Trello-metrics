@@ -6,7 +6,8 @@ from typing import Any
 
 from trello_metrics.domain.models import MovementEvent, PausaDetail, RetornoDetail, TrelloCard
 from trello_metrics.domain.workflow import WorkflowConfig
-from trello_metrics.utils.dates import hours_between, human_hours, isoformat
+from trello_metrics.utils.business_hours import duration_hours
+from trello_metrics.utils.dates import human_hours, isoformat
 from trello_metrics.utils.fibonacci import parse_fibonacci_level
 from trello_metrics.utils.period import MonthPeriod
 from trello_metrics.utils.text import normalize_key, strip_accents
@@ -114,6 +115,7 @@ class CardTimeline:
     metric_cycle_hours: float | None = None
     # Vida util real do card: criacao ate fechamento (ou agora, se ainda aberto).
     lead_time_hours: float = 0.0
+    cycle_time_hours: float | None = None
     terminal_reached_at: datetime | None = None
     terminal_group: str = ""
     return_after_terminal: bool = False
@@ -172,12 +174,6 @@ class CardTimeline:
         if any(period.contains(pausa.momento) for pausa in self.pausas):
             return True
         return False
-
-    @property
-    def cycle_time_hours(self) -> float | None:
-        if not self.delivered_at or not self.created_at:
-            return None
-        return hours_between(self.created_at, self.delivered_at)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -290,7 +286,7 @@ def _build_one(
     )
 
     ordered = sorted(events, key=lambda item: item.at)
-    list_spans = _list_spans(card, ordered, now)
+    list_spans = _list_spans(card, ordered, now, workflow)
     delivery_groups = set(workflow.delivery_groups_for_kind(kind))
 
     for span in list_spans:
@@ -341,7 +337,13 @@ def _build_one(
         timeline.accepted_without_dev_return = not had_dev_return_before_delivery
 
     timeline.closed_at = card.date_closed
-    timeline.lead_time_hours = hours_between(card.created_at, card.date_closed or now)
+    timeline.lead_time_hours = duration_hours(card.created_at, card.date_closed or now, workflow)
+    if timeline.delivered_at and timeline.created_at:
+        timeline.cycle_time_hours = duration_hours(
+            timeline.created_at,
+            timeline.delivered_at,
+            workflow,
+        )
 
     timeline.passed_peer_review = any(
         timeline.group_visits.get(group, 0) > 0 for group in workflow.peer_review_groups()
@@ -387,7 +389,7 @@ def _apply_flow_metrics(timeline: CardTimeline, workflow: WorkflowConfig) -> Non
     for entry in timeline.stage_timeline:
         if entry.group in excluded_flow:
             continue
-        hours = _clipped_stage_hours(entry, cap)
+        hours = _clipped_stage_hours(entry, cap, workflow)
         if hours <= 0:
             continue
         total += hours
@@ -400,7 +402,7 @@ def _apply_flow_metrics(timeline: CardTimeline, workflow: WorkflowConfig) -> Non
     timeline.flow_hours_until_delivery = round(total, 2)
     flow_start = _metric_flow_start_at(timeline, workflow)
     if timeline.delivered_at and flow_start:
-        timeline.metric_cycle_hours = hours_between(flow_start, timeline.delivered_at)
+        timeline.metric_cycle_hours = duration_hours(flow_start, timeline.delivered_at, workflow)
     else:
         timeline.metric_cycle_hours = timeline.cycle_time_hours
 
@@ -419,11 +421,15 @@ def _metric_flow_start_at(timeline: CardTimeline, workflow: WorkflowConfig) -> d
     return flow_start
 
 
-def _clipped_stage_hours(entry: StageTimelineEntry, cap_at: datetime | None) -> float:
+def _clipped_stage_hours(
+    entry: StageTimelineEntry,
+    cap_at: datetime | None,
+    workflow: WorkflowConfig,
+) -> float:
     if cap_at and entry.start_at and entry.start_at >= cap_at:
         return 0.0
     if cap_at and entry.end_at and entry.end_at > cap_at:
-        return hours_between(entry.start_at, cap_at)
+        return duration_hours(entry.start_at, cap_at, workflow)
     return entry.hours
 
 
@@ -649,6 +655,7 @@ def _list_spans(
     card: TrelloCard,
     events: list[MovementEvent],
     now: datetime,
+    workflow: WorkflowConfig,
 ) -> list[dict[str, Any]]:
     """Calcula permanencia em cada lista usando estado corrente (from -> to).
 
@@ -663,7 +670,7 @@ def _list_spans(
                 "list_name": card.current_list_name,
                 "start": card.created_at,
                 "end": card.date_closed or now,
-                "hours": hours_between(card.created_at, card.date_closed or now),
+                "hours": duration_hours(card.created_at, card.date_closed or now, workflow),
             }
         ]
 
@@ -691,7 +698,7 @@ def _list_spans(
                     "list_name": current_list,
                     "start": current_start,
                     "end": event.at,
-                    "hours": hours_between(current_start, event.at),
+                    "hours": duration_hours(current_start, event.at, workflow),
                 }
             )
         current_list = event.to_list_name or current_list
@@ -704,7 +711,7 @@ def _list_spans(
                 "list_name": current_list,
                 "start": current_start,
                 "end": end,
-                "hours": hours_between(current_start, end),
+                "hours": duration_hours(current_start, end, workflow),
             }
         )
     return spans

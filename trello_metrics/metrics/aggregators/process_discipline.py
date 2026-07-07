@@ -7,7 +7,8 @@ from trello_metrics.domain.models import CustomFieldChange
 from trello_metrics.domain.workflow import WorkflowConfig
 from trello_metrics.metrics.aggregators.common import ratio, time_stats
 from trello_metrics.metrics.timeline import CardTimeline
-from trello_metrics.utils.dates import hours_between, isoformat
+from trello_metrics.utils.business_hours import duration_hours
+from trello_metrics.utils.dates import isoformat
 from trello_metrics.utils.period import MonthPeriod
 from trello_metrics.utils.text import normalize_key
 
@@ -74,6 +75,7 @@ def aggregate_process_discipline(
         "developer_assignment_latency": _developer_assignment_latency(
             timelines,
             field_changes,
+            workflow,
         ),
         "post_terminal_returns": post_terminal,
     }
@@ -306,6 +308,7 @@ def _cards_without_level(timelines: list[CardTimeline]) -> list[dict[str, Any]]:
 def _developer_assignment_latency(
     timelines: list[CardTimeline],
     field_changes: list[CustomFieldChange],
+    workflow: WorkflowConfig,
 ) -> dict[str, Any]:
     created_by_id = {
         timeline.card_id: timeline.created_at for timeline in timelines if timeline.created_at
@@ -325,7 +328,7 @@ def _developer_assignment_latency(
         created_at = created_by_id.get(card_id)
         if not created_at:
             continue
-        hours = hours_between(created_at, change.at)
+        hours = duration_hours(created_at, change.at, workflow)
         values.append(hours)
         rows.append(
             {

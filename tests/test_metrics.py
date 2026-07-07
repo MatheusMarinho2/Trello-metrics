@@ -17,6 +17,7 @@ from trello_metrics.metrics.aggregators.bottlenecks import aggregate_bottlenecks
 from trello_metrics.metrics.aggregators.collaborators import aggregate_collaborators
 from trello_metrics.metrics.aggregators.developers import aggregate_developers
 from trello_metrics.metrics.aggregators.trends import aggregate_trends
+from trello_metrics.utils.business_hours import business_hours_between
 from trello_metrics.metrics.engine import MetricsEngine
 from trello_metrics.metrics.timeline import build_card_timelines
 from trello_metrics.utils.fibonacci import parse_fibonacci_level
@@ -34,6 +35,57 @@ class FibonacciTest(unittest.TestCase):
         self.assertEqual(parse_fibonacci_level("8"), 8)
         self.assertEqual(parse_fibonacci_level("Nivel 13"), 13)
         self.assertIsNone(parse_fibonacci_level("20"))
+
+
+class BusinessHoursTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.rules = load_workflow_config().sla_rules()
+
+    def test_excludes_lunch_break_on_weekday(self) -> None:
+        start = _dt(2026, 6, 1, 11)
+        end = _dt(2026, 6, 1, 14)
+        elapsed = business_hours_between(start, end, self.rules, "America/Sao_Paulo")
+        self.assertEqual(elapsed, 2.0)
+
+    def test_thursday_ends_at_1730(self) -> None:
+        start = _dt(2026, 6, 4, 17)
+        end = _dt(2026, 6, 4, 18)
+        elapsed = business_hours_between(start, end, self.rules, "America/Sao_Paulo")
+        self.assertEqual(elapsed, 0.5)
+
+    def test_timeline_group_hours_exclude_lunch(self) -> None:
+        card = TrelloCard(
+            id="card_lunch",
+            name="PM CLIENTE / Permanencia almoco",
+            current_list_id="dev",
+            current_list_name="EM ANDAMENTO",
+            created_at=_dt(2026, 6, 2, 11),
+            custom_fields={"Desenvolvedor": "D-Dev.A", "Nivel": "3", "Sistema": "Legislativo"},
+        )
+        events = [
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 2, 11),
+                event_type="moved",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 2, 14),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="AGUARDANDO REVISAO FORMAL",
+            ),
+        ]
+        timelines = build_card_timelines(
+            [card],
+            {card.id: events},
+            load_workflow_config(),
+            _dt(2026, 6, 2, 15),
+        )
+        self.assertEqual(timelines[0].group_hours.get("development"), 2.0)
 
 
 class MetricsEngineTest(unittest.TestCase):
@@ -477,6 +529,185 @@ class MetricsEngineTest(unittest.TestCase):
         self.assertEqual(development["sla_human"], "1.00 h")
         self.assertEqual(result["sla"]["team"]["compliance_pct"], 66.7)
 
+    def test_sla_analysis_planning_uses_analysis_level_hours(self) -> None:
+        card = TrelloCard(
+            id="card_sla_analysis",
+            name="ANALISE / Impacto no modulo de pauta",
+            current_list_id="analysis_done",
+            current_list_name="ANALISES FINALIZADAS",
+            created_at=_dt(2026, 6, 2, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Matheus.Marinho",
+                "Nivel (Analise)": "2",
+                "Sistema": "Legislativo",
+                "Solicitante": "S-Genilson",
+            },
+        )
+        events = [
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 2, 10),
+                event_type="moved",
+                to_list_name="ANALISES PARA PLANEJAMENTO",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 2, 12),
+                event_type="moved",
+                from_list_name="ANALISES PARA PLANEJAMENTO",
+                to_list_name="PLANEJAMENTO",
+            ),
+        ]
+
+        result = MetricsEngine(
+            self.workflow,
+            now=_dt(2026, 6, 2, 13),
+            month="2026-06",
+        ).calculate(self._board(card, events)).to_dict()
+
+        analysis_stage = next(
+            row for row in result["sla"]["by_stage"] if row["group"] == "analysis_planning"
+        )
+        self.assertEqual(analysis_stage["breached_count"], 1)
+        self.assertEqual(analysis_stage["sla_human"], "1.00 h")
+        card_checks = result["sla"]["cards"][0]["checks"]
+        planning_check = next(item for item in card_checks if item["group"] == "analysis_planning")
+        self.assertEqual(planning_check["sla_basis"], "analysis_level")
+        self.assertEqual(planning_check["limit_hours"], 1.0)
+
+    def test_sla_analysis_planning_without_level_is_skipped(self) -> None:
+        card = TrelloCard(
+            id="card_sla_analysis_no_level",
+            name="ANALISE / Sem nivel informado",
+            current_list_id="analysis_planning",
+            current_list_name="ANALISES PARA PLANEJAMENTO",
+            created_at=_dt(2026, 6, 3, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Matheus.Marinho",
+                "Sistema": "Legislativo",
+            },
+        )
+        events = [
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 3, 10),
+                event_type="moved",
+                to_list_name="ANALISES PARA PLANEJAMENTO",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 3, 12),
+                event_type="moved",
+                from_list_name="ANALISES PARA PLANEJAMENTO",
+                to_list_name="PLANEJAMENTO",
+            ),
+        ]
+
+        result = MetricsEngine(
+            self.workflow,
+            now=_dt(2026, 6, 3, 13),
+            month="2026-06",
+        ).calculate(self._board(card, events)).to_dict()
+
+        groups = {row["group"] for row in result["sla"]["by_stage"]}
+        self.assertNotIn("analysis_planning", groups)
+
+    def test_sla_return_developer_uses_priority_hours(self) -> None:
+        card = TrelloCard(
+            id="card_sla_return",
+            name="PM CLIENTE / Correcao pos teste",
+            current_list_id="return_dev",
+            current_list_name="RETORNO (DEV)",
+            created_at=_dt(2026, 6, 4, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Matheus.Marinho",
+                "Nivel": "3",
+                "Prioridade": "Critica",
+                "Sistema": "Legislativo",
+            },
+        )
+        events = [
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 4, 10),
+                event_type="moved",
+                to_list_name="RETORNO (DEV)",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 4, 14),
+                event_type="moved",
+                from_list_name="RETORNO (DEV)",
+                to_list_name="EM ANDAMENTO",
+            ),
+        ]
+
+        result = MetricsEngine(
+            self.workflow,
+            now=_dt(2026, 6, 4, 15),
+            month="2026-06",
+        ).calculate(self._board(card, events)).to_dict()
+
+        return_stage = next(
+            row for row in result["sla"]["by_stage"] if row["group"] == "return_developer"
+        )
+        self.assertEqual(return_stage["breached_count"], 1)
+        self.assertEqual(return_stage["sla_human"], "2.00 h")
+        return_check = next(
+            item for item in result["sla"]["cards"][0]["checks"] if item["group"] == "return_developer"
+        )
+        self.assertEqual(return_check["sla_basis"], "return_priority")
+        self.assertEqual(return_check["limit_hours"], 2.0)
+
+    def test_sla_waiting_review_uses_fixed_stage_hours(self) -> None:
+        card = TrelloCard(
+            id="card_sla_waiting_review",
+            name="PM CLIENTE / Aguardando revisor",
+            current_list_id="waiting_review",
+            current_list_name="AGUARDANDO REVISAO FORMAL",
+            created_at=_dt(2026, 6, 5, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Matheus.Marinho",
+                "Nivel": "5",
+                "Sistema": "Legislativo",
+            },
+        )
+        events = [
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 5, 10),
+                event_type="moved",
+                to_list_name="AGUARDANDO REVISAO FORMAL",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 5, 16),
+                event_type="moved",
+                from_list_name="AGUARDANDO REVISAO FORMAL",
+                to_list_name="EM REVISAO",
+            ),
+        ]
+
+        result = MetricsEngine(
+            self.workflow,
+            now=_dt(2026, 6, 5, 17),
+            month="2026-06",
+        ).calculate(self._board(card, events)).to_dict()
+
+        waiting_review = next(
+            row for row in result["sla"]["by_stage"] if row["group"] == "waiting_review"
+        )
+        self.assertEqual(waiting_review["breached_count"], 1)
+        self.assertEqual(waiting_review["sla_human"], "4.00 h")
+
     def test_tester_return_dev_penalizes_dev_and_reviewers_but_counts_prevented_problem(self) -> None:
         card = TrelloCard(
             id="card_tester_return",
@@ -878,8 +1109,8 @@ class MetricsEngineTest(unittest.TestCase):
             month="2026-06",
         ).calculate(board).to_dict()
 
-        self.assertEqual(result["flow"]["team"]["lead_time"]["p85_hours"], 7.0)
-        self.assertEqual(result["flow"]["team"]["cycle_time"]["p85_hours"], 4.0)
+        self.assertEqual(result["flow"]["team"]["lead_time"]["p85_hours"], 6.0)
+        self.assertEqual(result["flow"]["team"]["cycle_time"]["p85_hours"], 3.0)
         self.assertEqual(result["flow"]["team"]["planning_to_approval_time"]["p85_hours"], 1.0)
         self.assertEqual(result["flow"]["team"]["wip_total"], 1)
         self.assertGreater(result["flow"]["team"]["little_law"]["predicted_lead_time_days"], 0)

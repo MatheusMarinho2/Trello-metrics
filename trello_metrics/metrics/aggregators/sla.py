@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import statistics
 from collections import defaultdict
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from trello_metrics.domain.models import TrelloCard
 from trello_metrics.domain.workflow import WorkflowConfig
 from trello_metrics.metrics.timeline import CardTimeline, StageTimelineEntry
+from trello_metrics.utils.business_hours import business_hours_between
 from trello_metrics.utils.dates import hours_between, human_hours, isoformat
 from trello_metrics.utils.period import MonthPeriod
+from trello_metrics.utils.text import normalize_key
 
 
 def aggregate_sla(
@@ -65,7 +66,13 @@ def aggregate_sla(
             "timezone": rules.get("timezone", timezone_name),
             "business_hours": rules.get("business_hours", {}),
             "risk_threshold_pct": float(rules.get("risk_threshold_pct", 80)),
-            "note": "Horas uteis usam dias de semana e janela configurada; Aguardando producao usa dias corridos.",
+            "note": (
+                "Horas uteis usam expediente INTGEST (seg-qua 8h-18h, qui-sex 8h-17h30, "
+                "almoco 12h-13h); Aguardando producao usa dias corridos; "
+                "Em andamento usa nivel Fibonacci (cards problema); "
+                "Analises para planejamento usa nivel de analise; "
+                "Retornos usam prioridade do card."
+            ),
         },
         "team": {
             "cards_evaluated": len(by_card),
@@ -93,7 +100,7 @@ def _stage_check(
     now: datetime,
     timezone_name: str,
 ) -> dict[str, Any] | None:
-    limit = _sla_limit_hours(timeline, stage.group, rules)
+    limit, sla_basis = _sla_limit_info(timeline, stage.group, rules)
     if limit is None or limit <= 0:
         return None
 
@@ -117,6 +124,8 @@ def _stage_check(
         "sistema": timeline.sistema,
         "desenvolvedor": timeline.desenvolvedor,
         "fibonacci_level": timeline.fibonacci_level,
+        "prioridade": timeline.prioridade,
+        "sla_basis": sla_basis,
         "group": stage.group,
         "title": workflow.title_for_group(stage.group),
         "list_name": stage.list_name,
@@ -174,32 +183,81 @@ def _stage_in_period_scope(
     return stage.start_at < period_end and end > period_start
 
 
+def _sla_limit_info(
+    timeline: CardTimeline,
+    group: str,
+    rules: dict[str, Any],
+) -> tuple[float | None, str]:
+    excluded = set(rules.get("excluded_groups", []))
+    if group in excluded:
+        return None, ""
+
+    wip_only = set(rules.get("wip_only_groups", []))
+    if group in wip_only:
+        return None, ""
+
+    analysis_groups = set(rules.get("analysis_sla_groups", ["analysis_planning"]))
+    if group in analysis_groups and timeline.kind == "analysis":
+        by_level = rules.get("analysis_hours_by_level", {})
+        level = timeline.fibonacci_level
+        if level is None:
+            return None, ""
+        value = by_level.get(str(level))
+        if value is None:
+            return None, ""
+        return float(value), "analysis_level"
+
+    if group == "development":
+        if timeline.kind != "problem":
+            return None, ""
+        by_level = rules.get("development_hours_by_level", {})
+        level = timeline.fibonacci_level
+        if level is None:
+            return None, ""
+        value = by_level.get(str(level))
+        if value is None:
+            return None, ""
+        return float(value), "development_level"
+
+    return_rules = rules.get("return_hours_by_priority", {})
+    if group in return_rules:
+        priority_key = _priority_sla_key(timeline.prioridade)
+        group_rules = return_rules[group]
+        if not isinstance(group_rules, dict):
+            return None, ""
+        value = group_rules.get(priority_key) or group_rules.get("default")
+        if value is None:
+            return None, ""
+        return float(value), "return_priority"
+
+    stage_hours = rules.get("stage_hours", {})
+    if group in stage_hours:
+        return float(stage_hours[group]), "stage"
+
+    calendar_hours = rules.get("stage_calendar_hours", {})
+    if group in calendar_hours:
+        return float(calendar_hours[group]), "stage"
+
+    return None, ""
+
+
+def _priority_sla_key(prioridade: str | None) -> str:
+    key = normalize_key(prioridade)
+    mapping = {
+        "CRITICA": "critica",
+        "URGENTE": "urgente",
+        "ALTA": "alta",
+    }
+    return mapping.get(key, "default")
+
+
 def _sla_limit_hours(
     timeline: CardTimeline,
     group: str,
     rules: dict[str, Any],
 ) -> float | None:
-    excluded = set(rules.get("excluded_groups", []))
-    if group in excluded:
-        return None
-
-    if group == "development":
-        by_level = rules.get("development_hours_by_level", {})
-        level = timeline.fibonacci_level
-        if level is None:
-            return None
-        value = by_level.get(str(level))
-        return float(value) if value is not None else None
-
-    stage_hours = rules.get("stage_hours", {})
-    if group in stage_hours:
-        return float(stage_hours[group])
-
-    calendar_hours = rules.get("stage_calendar_hours", {})
-    if group in calendar_hours:
-        return float(calendar_hours[group])
-
-    return None
+    limit, _ = _sla_limit_info(timeline, group, rules)
+    return limit
 
 
 def _sla_mode(group: str, rules: dict[str, Any]) -> str:
@@ -220,50 +278,7 @@ def _elapsed_hours(
         return 0.0
     if mode == "calendar":
         return hours_between(start, end)
-    return _business_hours_between(start, end, rules, timezone_name)
-
-
-def _business_hours_between(
-    start: datetime,
-    end: datetime,
-    rules: dict[str, Any],
-    timezone_name: str,
-) -> float:
-    if end <= start:
-        return 0.0
-
-    business = rules.get("business_hours", {})
-    tz = ZoneInfo(str(rules.get("timezone") or timezone_name))
-    start_local = start.astimezone(tz)
-    end_local = end.astimezone(tz)
-    day_start = _parse_time(business.get("start"), time(8, 0))
-    day_end = _parse_time(business.get("end"), time(18, 0))
-    weekdays = set(int(day) for day in business.get("weekdays", [0, 1, 2, 3, 4]))
-
-    total_seconds = 0.0
-    current_day = start_local.date()
-    last_day = end_local.date()
-    while current_day <= last_day:
-        if current_day.weekday() in weekdays:
-            window_start = datetime.combine(current_day, day_start, tzinfo=tz)
-            window_end = datetime.combine(current_day, day_end, tzinfo=tz)
-            overlap_start = max(start_local, window_start)
-            overlap_end = min(end_local, window_end)
-            if overlap_end > overlap_start:
-                total_seconds += (overlap_end - overlap_start).total_seconds()
-        current_day += timedelta(days=1)
-
-    return round(total_seconds / 3600, 6)
-
-
-def _parse_time(value: object, default: time) -> time:
-    if not value:
-        return default
-    try:
-        hour, minute = str(value).split(":", 1)
-        return time(int(hour), int(minute))
-    except (TypeError, ValueError):
-        return default
+    return business_hours_between(start, end, rules, timezone_name)
 
 
 def _by_stage(
@@ -280,6 +295,15 @@ def _by_stage(
         breaches = [item for item in items if item["breached"]]
         first_limit = items[0]["limit_hours"] if items else 0.0
         same_limit = all(item["limit_hours"] == first_limit for item in items)
+        bases = {item.get("sla_basis") for item in items}
+        if same_limit:
+            sla_label = human_hours(first_limit)
+        elif bases == {"development_level"} or bases == {"analysis_level"}:
+            sla_label = "Por nivel"
+        elif bases == {"return_priority"}:
+            sla_label = "Por prioridade"
+        else:
+            sla_label = "Variavel"
         rows.append(
             {
                 "group": group,
@@ -287,7 +311,7 @@ def _by_stage(
                 "checks": len(items),
                 "breached_count": len(breaches),
                 "compliance_pct": _pct(len(items) - len(breaches), len(items)),
-                "sla_human": human_hours(first_limit) if same_limit else "Por nivel",
+                "sla_human": sla_label,
                 "avg_elapsed_hours": round(statistics.mean(elapsed), 2) if elapsed else 0.0,
                 "avg_elapsed_human": human_hours(round(statistics.mean(elapsed), 2)) if elapsed else "0 s",
                 "max_breach_hours": round(max((item["breach_hours"] for item in items), default=0.0), 2),

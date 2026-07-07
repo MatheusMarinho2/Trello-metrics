@@ -13,7 +13,8 @@ from trello_metrics.metrics.aggregators.common import (
     time_stats,
 )
 from trello_metrics.metrics.timeline import CardTimeline, StageTimelineEntry
-from trello_metrics.utils.dates import hours_between, human_hours, isoformat
+from trello_metrics.utils.business_hours import duration_hours
+from trello_metrics.utils.dates import human_hours, isoformat
 from trello_metrics.utils.period import MonthPeriod
 
 
@@ -57,12 +58,12 @@ def aggregate_flow_metrics(
     timeline_by_id = {timeline.card_id: timeline for timeline in timelines}
 
     lead_values = [
-        hours_between(timeline.created_at, timeline.delivered_at)
+        duration_hours(timeline.created_at, timeline.delivered_at, workflow)
         for timeline in delivered
         if timeline.created_at and timeline.delivered_at
     ]
     cycle_values = [
-        hours_between(start, timeline.delivered_at)
+        duration_hours(start, timeline.delivered_at, workflow)
         for timeline in delivered
         if (start := first_stage_start(timeline, "development")) and timeline.delivered_at
     ]
@@ -76,7 +77,7 @@ def aggregate_flow_metrics(
         for stage in timeline.stage_timeline:
             if stage.group in TERMINAL_GROUPS:
                 continue
-            hours = stage_duration_until(stage, cap)
+            hours = stage_duration_until(stage, cap, workflow)
             if hours <= 0:
                 continue
             stage_values[stage.group].append(hours)
@@ -133,7 +134,7 @@ def aging_wip(
             if stage.group in TERMINAL_GROUPS:
                 continue
             if stage.start_at and stage.end_at:
-                historical[stage.group].append(hours_between(stage.start_at, stage.end_at))
+                historical[stage.group].append(stage.hours)
 
     card_by_id = {card.id: card for card in cards}
     rows: list[dict[str, Any]] = []
@@ -144,7 +145,7 @@ def aging_wip(
         current = _current_non_terminal_stage(timeline)
         if not current:
             continue
-        age = hours_between(current.start_at, now)
+        age = duration_hours(current.start_at, now, workflow)
         p50 = _percentile_from(historical.get(current.group, []), 50)
         p85 = _percentile_from(historical.get(current.group, []), 85)
         status = "ok"
@@ -241,7 +242,7 @@ def _open_card_row(
     now: datetime,
 ) -> dict[str, Any]:
     current = _current_non_terminal_stage(timeline) if timeline else None
-    age = hours_between(current.start_at, now) if current else 0.0
+    age = duration_hours(current.start_at, now, workflow) if current else 0.0
     return {
         "card_id": card.id,
         "id_short": card.id_short,
@@ -264,8 +265,8 @@ def _planning_to_approval_hours(timelines: list[CardTimeline]) -> list[float]:
         previous: StageTimelineEntry | None = None
         for stage in timeline.stage_timeline:
             if previous and previous.group == "planning" and stage.group == "approval":
-                if previous.start_at and previous.end_at:
-                    values.append(hours_between(previous.start_at, previous.end_at))
+                if previous.hours > 0:
+                    values.append(previous.hours)
                 break
             previous = stage
     return values

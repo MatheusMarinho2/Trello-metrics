@@ -203,15 +203,24 @@
     "timezone": "America/Sao_Paulo",
     "business_hours": {
       "start": "08:00",
-      "end": "18:00",
-      "weekdays": [0, 1, 2, 3, 4]
+      "weekdays": [0, 1, 2, 3, 4],
+      "lunch_break": {
+        "start": "12:00",
+        "end": "13:00"
+      },
+      "weekday_schedules": [
+        { "weekdays": [0, 1, 2], "end": "18:00" },
+        { "weekdays": [3, 4], "end": "17:30" }
+      ]
     },
     "risk_threshold_pct": 80,
     "stage_hours": {
       "planning": 48,
       "approval": 4,
       "peer_review": 1.5,
+      "waiting_review": 4,
       "review": 4,
+      "cicd_homologacao": 4,
       "waiting_deploy": 1,
       "waiting_test": 9,
       "testing": 2
@@ -227,8 +236,36 @@
       "8": 27,
       "13": 44
     },
+    "analysis_hours_by_level": {
+      "1": 0.5,
+      "2": 1,
+      "3": 2
+    },
+    "analysis_sla_groups": ["analysis_planning"],
+    "return_hours_by_priority": {
+      "return_developer": {
+        "default": 8,
+        "critica": 2,
+        "urgente": 4,
+        "alta": 6
+      },
+      "return_support": {
+        "default": 6,
+        "critica": 1,
+        "urgente": 2,
+        "alta": 4
+      }
+    },
     "wip_only_groups": ["backlog", "backlog_analysis"],
-    "excluded_groups": ["waiting_peer_review", "review_control", "production", "direct_production", "analysis_done"]
+    "excluded_groups": [
+      "waiting_peer_review",
+      "review_control",
+      "production",
+      "direct_production",
+      "analysis_done",
+      "paused",
+      "unknown"
+    ]
   },
   "ignore_card_labels": ["CONTROLE", "NAO METRICAR", "NÃƒO METRICAR"],
   "placeholder_card_titles": [

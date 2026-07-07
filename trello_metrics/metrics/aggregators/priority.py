@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 
+from trello_metrics.domain.workflow import WorkflowConfig
 from trello_metrics.metrics.aggregators.common import (
     is_high_priority,
     priority_rank,
@@ -10,7 +11,7 @@ from trello_metrics.metrics.aggregators.common import (
     time_stats,
 )
 from trello_metrics.metrics.timeline import CardTimeline
-from trello_metrics.utils.dates import hours_between
+from trello_metrics.utils.business_hours import duration_hours
 from trello_metrics.utils.period import MonthPeriod
 
 
@@ -18,6 +19,7 @@ def aggregate_priority_metrics(
     timelines: list[CardTimeline],
     period: MonthPeriod,
     aging_rows: list[dict[str, Any]],
+    workflow: WorkflowConfig,
 ) -> dict[str, Any]:
     active = [timeline for timeline in timelines if timeline.is_active_in(period)]
     delivered = [timeline for timeline in timelines if timeline.is_delivered_in(period)]
@@ -29,7 +31,7 @@ def aggregate_priority_metrics(
         priority = timeline.prioridade or "Nao informado"
         if timeline.created_at and timeline.delivered_at:
             lead_by_priority.setdefault(priority, []).append(
-                hours_between(timeline.created_at, timeline.delivered_at)
+                duration_hours(timeline.created_at, timeline.delivered_at, workflow)
             )
 
     queue_jumps = _queue_jumps(delivered)

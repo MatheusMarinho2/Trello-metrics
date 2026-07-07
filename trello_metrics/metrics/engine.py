@@ -27,7 +27,8 @@ from trello_metrics.metrics.aggregators.testers import aggregate_testers
 from trello_metrics.metrics.aggregators.trends import aggregate_trends
 from trello_metrics.metrics.timeline import build_card_timelines
 from trello_metrics.parsers.export_loader import movements_by_card
-from trello_metrics.utils.dates import hours_between, human_hours, isoformat
+from trello_metrics.utils.business_hours import duration_hours
+from trello_metrics.utils.dates import human_hours, isoformat
 from trello_metrics.utils.period import MonthPeriod, month_range, parse_month
 
 
@@ -118,8 +119,8 @@ class MetricsEngine:
             periods = month_range(self.month, self.history_months, self.timezone_name)
             developers = aggregate_developers(timelines, period)
             flow = aggregate_flow_metrics(timelines, cards, self.workflow, period, self.now)
-            priority = aggregate_priority_metrics(timelines, period, flow["aging_wip"])
-            dora = aggregate_dora_metrics(timelines, period)
+            priority = aggregate_priority_metrics(timelines, period, flow["aging_wip"], self.workflow)
+            dora = aggregate_dora_metrics(timelines, period, self.workflow)
             risk_board = aggregate_risk_board(timelines, flow["aging_wip"])
             payload["period"] = {
                 "month": self.month,
@@ -387,7 +388,7 @@ class MetricsEngine:
                     "list_name": card.current_list_name,
                     "start": card.created_at,
                     "end": card.date_closed or self.now,
-                    "hours": hours_between(card.created_at, card.date_closed or self.now),
+                    "hours": duration_hours(card.created_at, card.date_closed or self.now, self.workflow),
                 }
             ]
 
@@ -401,7 +402,7 @@ class MetricsEngine:
                     "list_name": list_name,
                     "start": point.at,
                     "end": end,
-                    "hours": hours_between(point.at, end),
+                    "hours": duration_hours(point.at, end, self.workflow),
                 }
             )
         return spans
@@ -421,7 +422,7 @@ class MetricsEngine:
                 end = event.at
                 break
         end = end or card.date_closed or self.now
-        return hours_between(start, end)
+        return duration_hours(start, end, self.workflow)
 
     @staticmethod
     def _flow_flags(kind: str, groups_seen: list[str], pause_count: int = 0) -> list[str]:
