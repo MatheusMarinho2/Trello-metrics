@@ -15,6 +15,7 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  Trash2,
   User,
   UserPlus,
   Users,
@@ -25,6 +26,8 @@ import { type Dispatch, type FormEvent, type SetStateAction, useEffect, useMemo,
 import {
   clearStoredToken,
   createCollaborator,
+  deleteAllReports,
+  deleteReport,
   downloadReport,
   generateReport,
   getReport,
@@ -123,8 +126,8 @@ const fallbackOptions: ReportOptions = {
 function App() {
   const [token, setToken] = useState(getStoredToken());
   const [username, setUsername] = useState("");
-  const [loginName, setLoginName] = useState("gestor");
-  const [password, setPassword] = useState("intgest");
+  const [loginName, setLoginName] = useState(import.meta.env.DEV ? "gestor" : "");
+  const [password, setPassword] = useState(import.meta.env.DEV ? "intgest" : "");
   const [activeTab, setActiveTab] = useState<ReportType>("general");
   const [options, setOptions] = useState<ReportOptions>(fallbackOptions);
   const [reports, setReports] = useState<GeneratedReport[]>([]);
@@ -285,7 +288,7 @@ function App() {
   async function handleDownload(report: GeneratedReport, format: "pdf" | "json" | "html") {
     setError("");
     try {
-      await downloadReport(token, report.id, format);
+      await downloadReport(token, report.id, format, reportFileBaseName(report));
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -303,6 +306,32 @@ function App() {
       setError(errorMessage(err));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDeleteReport(report: GeneratedReport, event: React.MouseEvent) {
+    event.stopPropagation();
+    if (!window.confirm(`Excluir o relatorio "${report.title}"? Esta acao nao pode ser desfeita.`)) return;
+    setError("");
+    try {
+      await deleteReport(token, report.id);
+      if (currentReport?.id === report.id) setCurrentReport(null);
+      await loadHistoryForTab(activeTab);
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
+  async function handleDeleteAllReports() {
+    if (reports.length === 0) return;
+    if (!window.confirm(`Excluir TODOS os ${reports.length} relatorios da aba "${activeTabLabel}"? Esta acao nao pode ser desfeita.`)) return;
+    setError("");
+    try {
+      await deleteAllReports(token, activeTab);
+      setCurrentReport(null);
+      await loadHistoryForTab(activeTab);
+    } catch (err) {
+      setError(errorMessage(err));
     }
   }
 
@@ -368,6 +397,15 @@ function App() {
   }
 
   function handlePrint() {
+    const previousTitle = document.title;
+    if (currentReport) {
+      document.title = reportFileBaseName(currentReport);
+    }
+    const restore = () => {
+      document.title = previousTitle;
+      window.removeEventListener("afterprint", restore);
+    };
+    window.addEventListener("afterprint", restore);
     window.print();
   }
 
@@ -722,18 +760,39 @@ function App() {
           <div className="panel-title compact">
             <ClipboardList size={18} />
             <h2>Historico {activeTabLabel}</h2>
+            {reports.length > 0 ? (
+              <button
+                type="button"
+                className="ghost-btn danger"
+                onClick={() => void handleDeleteAllReports()}
+                title="Excluir todos os relatorios desta aba"
+              >
+                <Trash2 size={14} /> Limpar tudo
+              </button>
+            ) : null}
           </div>
           <div className="history-list">
             {reports.map((report) => (
-              <button
+              <div
                 key={report.id}
-                type="button"
                 className={currentReport?.id === report.id ? "history-item active" : "history-item"}
                 onClick={() => void handleSelectReport(report)}
+                role="button"
+                tabIndex={0}
               >
-                <strong>{report.title}</strong>
-                <span>{formatDate(report.created_at)}</span>
-              </button>
+                <div className="history-item-info">
+                  <strong>{report.title}</strong>
+                  <span>{formatDate(report.created_at)}</span>
+                </div>
+                <button
+                  type="button"
+                  className="history-item-delete"
+                  onClick={(event) => void handleDeleteReport(report, event)}
+                  title="Excluir este relatorio"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             ))}
           </div>
         </aside>
@@ -984,7 +1043,11 @@ function MetricSections({ report }: { report: GeneratedReport }) {
           <ObjectPanel title="Disciplina de processo" value={metrics.process_discipline} />
         ) : null}
         {allowed.has("alerts") && metrics.sla?.current_alerts ? (
-          <MetricTable title="Cards em risco" rows={metrics.sla.current_alerts} />
+          <MetricTable
+            title="Cards em risco"
+            rows={metrics.sla.current_alerts}
+            hiddenColumns={["desenvolvedor", "solicitante", "tester", "revisor", "revisor_par"]}
+          />
         ) : null}
         {showCardDossier ? <CardDossier title="Cards" metrics={metrics} /> : null}
       </div>
@@ -1112,7 +1175,11 @@ function ManagementSections({
         <MetricTable title="SLA por desenvolvedor" rows={metrics.sla.by_developer} />
       ) : null}
       {allowed.has("alerts") && metrics.sla?.current_alerts ? (
-        <MetricTable title="Cards em risco (SLA)" rows={metrics.sla.current_alerts} />
+        <MetricTable
+          title="Cards em risco (SLA)"
+          rows={metrics.sla.current_alerts}
+          hiddenColumns={["desenvolvedor", "solicitante", "tester", "revisor", "revisor_par"]}
+        />
       ) : null}
       {metrics.bottlenecks?.management_only_view ? (
         <ObjectPanel title="Visao gerencial por lista" value={metrics.bottlenecks.management_only_view} />
@@ -1276,12 +1343,20 @@ function ManagementMetricGuide({ report }: { report: GeneratedReport }) {
   );
 }
 
-function MetricTable({ title, rows }: { title: string; rows: Array<Record<string, any>> }) {
+function MetricTable({
+  title,
+  rows,
+  hiddenColumns = [],
+}: {
+  title: string;
+  rows: Array<Record<string, any>>;
+  hiddenColumns?: string[];
+}) {
   const tableId = SECTION_TABLE_IDS[title];
   const description = tableId ? tableDescription(tableId) : "";
   const columns = Object.keys(rows[0] ?? {})
     .filter((key) => isSimple(rows[0][key]) || key === "top_bottleneck")
-    .filter((key) => !["id", "card_id", "scope"].includes(key))
+    .filter((key) => !["id", "card_id", "scope", ...hiddenColumns].includes(key))
     .slice(0, 8);
 
   return (
@@ -1666,7 +1741,7 @@ function cardMeta(card: Record<string, any>): string {
   return [
     card.current_list,
     card.sistema,
-    card.kind,
+    formatCell(card.kind, "kind"),
     card.collaborator_time_human,
   ]
     .filter(Boolean)
@@ -1717,6 +1792,36 @@ function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
 }
 
+const REPORT_TYPE_SLUGS: Record<string, string> = {
+  general: "geral",
+  individual: "individual",
+  developers: "desenvolvedores",
+  requesters: "solicitantes",
+  testers: "testers",
+  management: "gestao",
+  specific_metrics: "metricas",
+};
+
+function slugify(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+}
+
+function reportFileBaseName(report: GeneratedReport): string {
+  const tipo = REPORT_TYPE_SLUGS[report.report_type] ?? report.report_type;
+  const parts = ["intgest", tipo];
+  if (report.collaborator_name) {
+    const colaborador = slugify(report.collaborator_name);
+    if (colaborador) parts.push(colaborador);
+  }
+  if (report.month) parts.push(report.month.replace(/\//g, "-"));
+  return parts.join("_");
+}
+
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
@@ -1750,6 +1855,25 @@ function formatCell(value: unknown, key?: string): string {
   }
   if (key === "kind" && typeof value === "string") {
     return ({ problem: "Problema", analysis: "Analise", unknown: "Nao classificado" } as Record<string, string>)[value] ?? value;
+  }
+  if (key === "group" && typeof value === "string") {
+    return metricLabel(value);
+  }
+  if (key === "status" && typeof value === "string") {
+    return ({ ok: "Dentro do prazo", em_risco: "Em risco", estourado: "Estourado" } as Record<string, string>)[value] ?? value;
+  }
+  if (key === "sla_basis" && typeof value === "string") {
+    return (
+      {
+        stage_hours: "Etapa (horas corridas)",
+        stage_calendar_hours: "Etapa (horas uteis)",
+        analysis_level: "Nivel de analise",
+        development_level: "Nivel de desenvolvimento",
+        return_priority: "Prioridade do retorno",
+        excluded: "Sem SLA",
+        wip_only: "Somente WIP",
+      } as Record<string, string>
+    )[value] ?? metricLabel(value);
   }
   if (key === "scope" && typeof value === "string") {
     return ({ developers: "Desenvolvedores", testers: "Testers", requesters: "Solicitantes" } as Record<string, string>)[value] ?? metricLabel(value);

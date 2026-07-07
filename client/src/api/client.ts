@@ -43,6 +43,15 @@ export async function getReport(token: string, id: string): Promise<GeneratedRep
   return apiFetch(`/reports/${id}/`, token);
 }
 
+export async function deleteReport(token: string, id: string): Promise<void> {
+  await apiFetch(`/reports/${id}/`, token, { method: "DELETE" });
+}
+
+export async function deleteAllReports(token: string, reportType?: ReportType): Promise<{ deleted: number }> {
+  const query = reportType ? `?report_type=${encodeURIComponent(reportType)}` : "";
+  return apiFetch(`/reports/${query}`, token, { method: "DELETE" });
+}
+
 export async function generateReport(
   token: string,
   payload: GenerateReportPayload,
@@ -57,6 +66,7 @@ export async function downloadReport(
   token: string,
   id: string,
   format: "pdf" | "json" | "html",
+  fallbackName?: string,
 ): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/reports/${id}/export/${format}/`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -68,9 +78,10 @@ export async function downloadReport(
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   const disposition = response.headers.get("Content-Disposition") ?? "";
-  const match = disposition.match(/filename="(.+)"/);
+  const match = disposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)"?/i);
+  const fallback = fallbackName ? `${fallbackName}.${format}` : `intgest-report.${format}`;
   link.href = url;
-  link.download = match?.[1] ?? `intgest-report.${format}`;
+  link.download = match?.[1] ? decodeURIComponent(match[1]) : fallback;
   document.body.appendChild(link);
   link.click();
   link.remove();

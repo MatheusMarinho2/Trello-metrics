@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from copy import deepcopy
 import json
+import re
 import tempfile
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -100,6 +102,33 @@ class ReportExportService:
         }
 
 
+REPORT_TYPE_SLUGS = {
+    "general": "geral",
+    "individual": "individual",
+    "developers": "desenvolvedores",
+    "requesters": "solicitantes",
+    "testers": "testers",
+    "management": "gestao",
+    "specific_metrics": "metricas",
+}
+
+
+def _slugify(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value or "")
+    ascii_only = normalized.encode("ascii", "ignore").decode("ascii")
+    ascii_only = re.sub(r"[^A-Za-z0-9]+", "-", ascii_only).strip("-").lower()
+    return ascii_only
+
+
 def _filename(report: GeneratedReport, extension: str) -> str:
-    safe_month = report.month.replace("/", "-")
-    return f"intgest_{report.report_type}_{safe_month}_{report.id}.{extension}"
+    tipo = REPORT_TYPE_SLUGS.get(report.report_type, report.report_type)
+    safe_month = (report.month or "").replace("/", "-")
+    parts = ["intgest", tipo]
+    if report.collaborator_name:
+        colaborador = _slugify(report.collaborator_name)
+        if colaborador:
+            parts.append(colaborador)
+    if safe_month:
+        parts.append(safe_month)
+    name = "_".join(parts)
+    return f"{name}.{extension}"

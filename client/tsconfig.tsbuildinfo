@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/api/client.ts","./src/components/helptip.tsx","./src/components/loadingoverlay.tsx","./src/lib/metricdefinitions.ts","./src/lib/reportlayouts.ts","./src/types/report.ts"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/main.tsx","./src/api/client.ts","./src/components/helptip.tsx","./src/components/loadingoverlay.tsx","./src/lib/metricdefinitions.ts","./src/lib/reportlayouts.ts","./src/types/report.ts","./src/utils/aimarkdown.tsx"],"version":"5.9.3"}

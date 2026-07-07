@@ -7,11 +7,21 @@ from typing import Any
 
 from trello_metrics.domain.models import TrelloCard
 from trello_metrics.domain.workflow import WorkflowConfig
+from trello_metrics.metrics.aggregators.collaborators import ROLE_CONFIGS
 from trello_metrics.metrics.timeline import CardTimeline, StageTimelineEntry
 from trello_metrics.utils.business_hours import business_hours_between
 from trello_metrics.utils.dates import hours_between, human_hours, isoformat
 from trello_metrics.utils.period import MonthPeriod
 from trello_metrics.utils.text import normalize_key
+
+
+ROLE_PREFIXES = {
+    "solicitante": "S-",
+    "desenvolvedor": "D-",
+    "revisor_par": "RP-",
+    "revisor": "R-",
+    "tester": "T-",
+}
 
 
 def aggregate_sla(
@@ -57,7 +67,11 @@ def aggregate_sla(
                 current_alerts.append(current)
 
     by_stage = _by_stage(checks, workflow)
-    by_developer = _by_developer(checks)
+    by_developer = _by_role(checks, "desenvolvedor")
+    by_solicitante = _by_role(checks, "solicitante")
+    by_tester = _by_role(checks, "tester")
+    by_revisor = _by_role(checks, "revisor")
+    by_revisor_par = _by_role(checks, "revisor_par")
     by_card = _by_card(checks)
     breached = [item for item in checks if item["breached"]]
 
@@ -84,6 +98,10 @@ def aggregate_sla(
         },
         "by_stage": by_stage,
         "by_developer": by_developer,
+        "by_solicitante": by_solicitante,
+        "by_tester": by_tester,
+        "by_revisor": by_revisor,
+        "by_revisor_par": by_revisor_par,
         "cards": by_card,
         "current_alerts": sorted(
             current_alerts,
@@ -117,12 +135,20 @@ def _stage_check(
     elif is_open_stage and usage_pct >= risk_threshold:
         status = "em_risco"
 
+    responsavel, responsavel_role = _responsible_for_group(timeline, stage.group)
+
     return {
         "card_id": timeline.card_id,
         "card_name": timeline.card_name,
         "kind": timeline.kind,
         "sistema": timeline.sistema,
         "desenvolvedor": timeline.desenvolvedor,
+        "solicitante": timeline.solicitante,
+        "tester": timeline.tester,
+        "revisor": timeline.revisor,
+        "revisor_par": timeline.revisor_par,
+        "responsavel": responsavel,
+        "responsavel_role": responsavel_role,
         "fibonacci_level": timeline.fibonacci_level,
         "prioridade": timeline.prioridade,
         "sla_basis": sla_basis,
@@ -323,21 +349,30 @@ def _by_stage(
     return rows
 
 
-def _by_developer(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _by_role(checks: list[dict[str, Any]], role_key: str) -> list[dict[str, Any]]:
+    config = ROLE_CONFIGS[role_key]
+    groups = set(config["groups"])
+    attr = config["attr"]
+    prefix = ROLE_PREFIXES.get(role_key, "")
+
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for check in checks:
-        dev = check.get("desenvolvedor") or "Nao informado"
-        if not str(dev).startswith("D-"):
+        if check["group"] not in groups:
             continue
-        grouped[str(dev)].append(check)
+        person = str(check.get(attr) or "Nao informado")
+        if prefix and not person.startswith(prefix):
+            continue
+        grouped[person].append(check)
 
     rows = []
-    for dev, items in grouped.items():
+    for person, items in grouped.items():
+        if person == "Nao informado":
+            continue
         card_ids = {item["card_id"] for item in items}
         breached = [item for item in items if item["breached"]]
         rows.append(
             {
-                "name": dev,
+                "name": person,
                 "cards_evaluated": len(card_ids),
                 "stage_checks": len(items),
                 "breached_count": len(breached),
@@ -348,6 +383,23 @@ def _by_developer(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     rows.sort(key=lambda item: (item["compliance_pct"], -item["breached_count"]), reverse=True)
     return rows
+
+
+def _responsible_for_group(timeline: CardTimeline, group: str) -> tuple[str, str]:
+    for role_key, config in ROLE_CONFIGS.items():
+        if group not in config["groups"]:
+            continue
+        attr = config["attr"]
+        person = str(getattr(timeline, attr, "Nao informado"))
+        prefix = ROLE_PREFIXES.get(role_key, "")
+        if prefix and not person.startswith(prefix):
+            return "Nao informado", config["label"]
+        return person, config["label"]
+    return "Pipeline", "Pipeline / CI-CD"
+
+
+def _by_developer(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return _by_role(checks, "desenvolvedor")
 
 
 def _by_card(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:

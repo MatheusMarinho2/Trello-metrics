@@ -116,7 +116,22 @@
     "total_cards_metricados": "Cards metricados",
     "scope": "Escopo do relatorio",
     "selected_metrics": "Metricas selecionadas",
-    "avg_planning_ok_pct": "Planejamento ok medio (%)"
+    "avg_planning_ok_pct": "Planejamento ok medio (%)",
+    "gestor_premature_approvals": "Aprovacoes prematuras (gestor)",
+    "gestor_approval_quality_pct": "Qualidade de aprovacao do gestor (%)",
+    "group": "Grupo do fluxo",
+    "avg_hours": "Tempo medio (h)",
+    "days_stuck": "Dias parado",
+    "responsavel": "Responsavel",
+    "list": "Lista",
+    "card": "Card",
+    "worst_stage": "Pior etapa",
+    "month": "Mes",
+    "high_or_critical_count": "Cards de alto risco",
+    "top_bottleneck": "Maior gargalo",
+    "kind": "Tipo de card",
+    "responsavel": "Responsavel pela etapa",
+    "responsavel_role": "Papel responsavel"
   },
   "descriptions": {
     "name": "Nome do colaborador conforme campo customizado ou membro do quadro Trello.",

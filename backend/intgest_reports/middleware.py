@@ -23,4 +23,5 @@ class CorsMiddleware:
                 "Authorization, Content-Type, X-Requested-With"
             )
             response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            response["Access-Control-Expose-Headers"] = "Content-Disposition"
         return response

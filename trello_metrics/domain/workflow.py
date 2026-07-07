@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -63,9 +64,9 @@ class WorkflowConfig:
         normalized_name = normalize_key(card_name)
         normalized_labels = {normalize_key(label) for label in labels}
 
-        if custom_fields.get("Nivel (Analise)") or custom_fields.get("Nível (Analise)"):
+        if _custom_field_value(custom_fields, "Nivel (Analise)", "Nível (Analise)"):
             return "analysis"
-        if custom_fields.get("Nivel") or custom_fields.get("Nível"):
+        if _custom_field_value(custom_fields, "Nivel", "Nível"):
             return "problem"
 
         for template in self.templates:
@@ -91,6 +92,9 @@ class WorkflowConfig:
         if ignored_labels.intersection(normalized_labels):
             return True
 
+        if self._card_has_ignored_person(custom_fields):
+            return True
+
         placeholder_titles = {
             normalize_key(title)
             for title in self.payload.get("placeholder_card_titles", [])
@@ -100,6 +104,19 @@ class WorkflowConfig:
 
         level_fields = ("Nível", "Nivel", "Nível (Analise)", "Nivel (Analise)")
         return not any(custom_fields.get(field) for field in level_fields)
+
+    def _card_has_ignored_person(self, custom_fields: dict[str, str]) -> bool:
+        ignored = self.payload.get("ignore_card_people", [])
+        if not ignored:
+            return False
+        ignored_keys = {_person_key(name) for name in ignored}
+        ignored_keys.discard("")
+        if not ignored_keys:
+            return False
+        for value in custom_fields.values():
+            if _person_key(value) in ignored_keys:
+                return True
+        return False
 
     def template_for_kind(self, kind: str) -> TemplateRule | None:
         for template in self.templates:
@@ -214,3 +231,26 @@ class WorkflowConfig:
     def sla_rules(self) -> dict[str, Any]:
         rules = self.payload.get("sla_rules", {})
         return rules if isinstance(rules, dict) else {}
+
+
+_ROLE_PREFIX_RE = re.compile(
+    r"^(?:REVISOR EM PAR|DESENVOLVEDOR|SOLICITANTE|TESTER|REV|DEV|RP|R|D|T|S)\s+",
+)
+
+
+def _person_key(value: object) -> str:
+    key = normalize_key(value)
+    return _ROLE_PREFIX_RE.sub("", key, count=1).strip()
+
+
+def _custom_field_value(custom_fields: dict[str, str], *names: str) -> str | None:
+    for name in names:
+        value = custom_fields.get(name)
+        if value:
+            return value
+    normalized = {normalize_key(key): value for key, value in custom_fields.items()}
+    for name in names:
+        value = normalized.get(normalize_key(name))
+        if value:
+            return value
+    return None

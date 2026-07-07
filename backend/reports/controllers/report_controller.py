@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from django.shortcuts import get_object_or_404
-from rest_framework.generics import RetrieveAPIView
+from rest_framework.generics import RetrieveDestroyAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -36,6 +36,14 @@ class ReportHistoryView(APIView):
         reports = reports[:50]
         return Response(GeneratedReportListSerializer(reports, many=True).data)
 
+    def delete(self, request):
+        reports = GeneratedReport.objects.all()
+        report_type = request.query_params.get("report_type")
+        if report_type:
+            reports = reports.filter(report_type=report_type)
+        deleted, _ = reports.delete()
+        return Response({"deleted": deleted}, status=200)
+
 
 class GenerateReportView(APIView):
     def post(self, request):
@@ -48,7 +56,7 @@ class GenerateReportView(APIView):
         return Response(GeneratedReportDetailSerializer(report).data, status=201)
 
 
-class ReportDetailView(RetrieveAPIView):
+class ReportDetailView(RetrieveDestroyAPIView):
     queryset = GeneratedReport.objects.all()
     serializer_class = GeneratedReportDetailSerializer
 

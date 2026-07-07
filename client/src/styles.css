@@ -1145,13 +1145,65 @@ td {
 }
 
 .history-item {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   width: 100%;
   padding: 12px;
   text-align: left;
   background: #f7fbff;
-  border-color: #d8e6f3;
+  border: 1px solid #d8e6f3;
+  cursor: pointer;
+}
+
+.history-item-info {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.history-item-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #b23b3b;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.65;
+}
+
+.history-item-delete:hover {
+  opacity: 1;
+  background: #fdeaea;
+  border-color: #f0c2c2;
+}
+
+.ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 5px 9px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid #d8e6f3;
+  background: #ffffff;
+  color: #4a6076;
+  cursor: pointer;
+}
+
+.ghost-btn.danger {
+  color: #b23b3b;
+  border-color: #f0c2c2;
+}
+
+.ghost-btn.danger:hover {
+  background: #fdeaea;
 }
 
 .history-item.active {

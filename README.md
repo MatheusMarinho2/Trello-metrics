@@ -145,8 +145,13 @@ GET  /api/reports/
 POST /api/reports/generate/
 GET  /api/reports/{id}/
 GET  /api/reports/{id}/export/pdf/
+GET  /api/reports/{id}/export/html/
 GET  /api/reports/{id}/export/json/
+DELETE /api/reports/{id}/
+DELETE /api/reports/            (limpa a aba; use ?report_type=)
 ```
+
+Guia completo de deploy em VPS: [`docs/deploy_vps.md`](docs/deploy_vps.md).
 
 Tipos de relatorio disponiveis:
 
