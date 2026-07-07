@@ -1036,7 +1036,7 @@ def _add_sla_section(
     alerts = sla.get("current_alerts") or []
     if alerts:
         story.append(Spacer(1, 0.25 * cm))
-        story.append(Paragraph("Cards em risco ou fora do SLA agora", styles["Heading2"]))
+        story.append(Paragraph("Cards com alerta de SLA na etapa atual", styles["Heading2"]))
         _add_metric_table(
             story,
             ["Card", "Etapa", "Uso", "SLA", "Status"],

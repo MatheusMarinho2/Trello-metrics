@@ -63,6 +63,7 @@ import {
   metricLabel,
   sectionGuide,
   SECTION_TABLE_IDS,
+  SLA_ALERTS_TABLE_TITLE,
   tableDescription,
 } from "./lib/metricDefinitions";
 
@@ -1098,7 +1099,7 @@ function MetricSections({ report }: { report: GeneratedReport }) {
         ) : null}
         {allowed.has("alerts") && metrics.sla?.current_alerts ? (
           <MetricTable
-            title="Cards em risco"
+            title={SLA_ALERTS_TABLE_TITLE}
             rows={metrics.sla.current_alerts}
             hiddenColumns={["desenvolvedor", "solicitante", "tester", "revisor", "revisor_par"]}
           />
@@ -1115,7 +1116,7 @@ function MetricSections({ report }: { report: GeneratedReport }) {
     ["Solicitantes", "requesters", metrics.requesters],
     ["Projetos", "projects", metrics.projects],
     ["Gargalos", "bottlenecks", metrics.bottlenecks?.by_stage],
-    ["Cards em risco", "alerts", metrics.sla?.current_alerts],
+    [SLA_ALERTS_TABLE_TITLE, "alerts", metrics.sla?.current_alerts],
     ["SLA por desenvolvedor", "sla_dev", metrics.sla?.by_developer],
     ["SLA por card", "sla_cards", metrics.sla?.cards],
   ] as const;
@@ -1230,7 +1231,7 @@ function ManagementSections({
       ) : null}
       {allowed.has("alerts") && metrics.sla?.current_alerts ? (
         <MetricTable
-          title="Cards em risco (SLA)"
+          title={SLA_ALERTS_TABLE_TITLE}
           rows={metrics.sla.current_alerts}
           hiddenColumns={["desenvolvedor", "solicitante", "tester", "revisor", "revisor_par"]}
         />
@@ -1914,7 +1915,7 @@ function formatCell(value: unknown, key?: string): string {
     return metricLabel(value);
   }
   if (key === "status" && typeof value === "string") {
-    return ({ ok: "Dentro do prazo", em_risco: "Em risco", estourado: "Estourado" } as Record<string, string>)[value] ?? value;
+    return ({ ok: "Dentro do prazo", em_risco: "Alerta de SLA", estourado: "Fora do prazo" } as Record<string, string>)[value] ?? value;
   }
   if (key === "sla_basis" && typeof value === "string") {
     return (

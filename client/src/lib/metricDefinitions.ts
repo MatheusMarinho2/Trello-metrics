@@ -50,6 +50,8 @@ export const MANAGEMENT_GUIDE_SECTIONS = [
   "quality_gates",
 ] as const;
 
+export const SLA_ALERTS_TABLE_TITLE = "Cards com alerta de SLA";
+
 export const SECTION_TABLE_IDS: Record<string, string> = {
   Colaboradores: "collaborators",
   Desenvolvedores: "developers",
@@ -58,6 +60,7 @@ export const SECTION_TABLE_IDS: Record<string, string> = {
   Solicitantes: "requesters",
   Projetos: "projects",
   Gargalos: "bottlenecks",
+  [SLA_ALERTS_TABLE_TITLE]: "sla_alerts",
   "SLA por desenvolvedor": "sla_developers",
   "SLA por card": "sla_cards",
 };

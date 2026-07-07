@@ -191,7 +191,7 @@
     "samples": "Quantidade de cards usados no calculo estatistico.",
     "sistema": "Sistema ou projeto associado ao card.",
     "card_name": "Titulo do card no Trello.",
-    "status": "Situacao atual em relacao ao limite de SLA.",
+    "status": "Situacao do card em relacao ao limite de SLA na etapa atual (dentro do prazo, alerta ou fora do prazo).",
     "usage_pct": "Percentual do limite de SLA ja consumido.",
     "limit_human": "Limite configurado de SLA para a etapa.",
     "sla_basis": "Como o limite foi definido: etapa fixa, nivel Fibonacci, nivel de analise ou prioridade em retorno.",
@@ -282,6 +282,10 @@
     "sla_team": {
       "description": "Resumo consolidado de SLA do time no periodo.",
       "columns": ["cards_evaluated", "stage_checks", "breached_count", "compliance_pct", "current_at_risk_count", "current_breached_count"]
+    },
+    "sla_alerts": {
+      "description": "Cards abertos na etapa atual com uso elevado do limite de SLA (a partir de 80%) ou prazo ja ultrapassado. Indica necessidade de acompanhamento, nao penalizacao.",
+      "columns": ["card_name", "kind", "sistema", "fibonacci_level", "priority", "sla_basis", "group", "status"]
     },
     "process_discipline": {
       "description": "Disciplina de processo: ordem canonica do fluxo, campos obrigatorios e etapas puladas.",
