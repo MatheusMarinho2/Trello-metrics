@@ -761,6 +761,11 @@ select:disabled {
   }
 }
 
+.download-actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .kpi-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

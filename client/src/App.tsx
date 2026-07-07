@@ -137,6 +137,7 @@ function App() {
   const selectedByTabRef = useRef<Partial<Record<ReportType, string>>>({});
   const [loading, setLoading] = useState(false);
   const [loadingLabel, setLoadingLabel] = useState("Carregando");
+  const [exporting, setExporting] = useState<"pdf" | "json" | "html" | null>(null);
   const [error, setError] = useState("");
 
   const [month, setMonth] = useState(currentMonth());
@@ -313,11 +314,15 @@ function App() {
   }
 
   async function handleDownload(report: GeneratedReport, format: "pdf" | "json" | "html") {
+    if (exporting) return;
+    setExporting(format);
     setError("");
     try {
       await downloadReport(token, report.id, format, reportFileBaseName(report));
     } catch (err) {
       setError(errorMessage(err));
+    } finally {
+      setExporting(null);
     }
   }
 
@@ -451,10 +456,17 @@ function App() {
     [activeTab],
   );
 
+  const overlayLabel = useMemo(() => {
+    if (exporting === "pdf") return "Gerando PDF";
+    if (exporting === "html") return "Gerando HTML";
+    if (exporting === "json") return "Gerando JSON";
+    return loadingLabel;
+  }, [exporting, loadingLabel]);
+
   if (!token) {
     return (
       <main className="login-shell">
-        <LoadingOverlay show={loading} label={loadingLabel} />
+        <LoadingOverlay show={loading || exporting !== null} label={overlayLabel} />
         <section className="login-card">
           <div className="brand-row">
             <div className="brand-mark">ig</div>
@@ -489,7 +501,7 @@ function App() {
 
   return (
     <main className="app-shell">
-      <LoadingOverlay show={loading} label={loadingLabel} />
+      <LoadingOverlay show={loading || exporting !== null} label={overlayLabel} />
       <header className="topbar">
         <div className="brand-row">
           <div className="brand-mark">ig</div>
@@ -818,15 +830,15 @@ function App() {
                   <h2>{currentReport.title}</h2>
                 </div>
                 <div className="download-actions">
-                  <button type="button" onClick={() => void handleDownload(currentReport, "html")}>
+                  <button type="button" disabled={exporting !== null} onClick={() => void handleDownload(currentReport, "html")}>
                     <Globe size={17} />
                     HTML
                   </button>
-                  <button type="button" onClick={() => void handleDownload(currentReport, "pdf")}>
+                  <button type="button" disabled={exporting !== null} onClick={() => void handleDownload(currentReport, "pdf")}>
                     <Download size={17} />
                     PDF
                   </button>
-                  <button type="button" onClick={() => void handleDownload(currentReport, "json")}>
+                  <button type="button" disabled={exporting !== null} onClick={() => void handleDownload(currentReport, "json")}>
                     <FileJson size={17} />
                     JSON
                   </button>
