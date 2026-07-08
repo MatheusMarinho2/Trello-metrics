@@ -1,6 +1,7 @@
 """Renderização HTML → PDF via Playwright (Chromium)."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 
@@ -25,29 +26,31 @@ def render_pdf(
 
     footer = (
         '<div style="font-size:8px;color:#666;width:100%;padding:0 0.6in;'
-        'display:flex;justify-content:space-between;font-family:Montserrat,sans-serif;">'
+        'display:flex;justify-content:space-between;font-family:system-ui,sans-serif;">'
         '<span>Metricas Trello INTGEST</span>'
         '<span>Pagina <span class="pageNumber"></span></span></div>'
     )
 
+    launch_args = ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+    if os.environ.get("PLAYWRIGHT_CHROMIUM_ARGS"):
+        launch_args.extend(os.environ["PLAYWRIGHT_CHROMIUM_ARGS"].split())
+
     with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page()
-        page.set_content(html, wait_until="networkidle")
-        page.emulate_media(media="print")
+        browser = p.chromium.launch(headless=True, args=launch_args)
         try:
-            page.evaluate("document.fonts.ready")
-        except Exception:
-            pass
-        page.pdf(
-            path=str(out),
-            format=size,
-            print_background=True,
-            display_header_footer=True,
-            header_template="<div></div>",
-            footer_template=footer,
-            prefer_css_page_size=False,
-            margin={"top": margin, "bottom": margin, "left": margin, "right": margin},
-        )
-        browser.close()
+            page = browser.new_page()
+            page.set_content(html, wait_until="load", timeout=120_000)
+            page.emulate_media(media="print")
+            page.pdf(
+                path=str(out),
+                format=size,
+                print_background=True,
+                display_header_footer=True,
+                header_template="<div></div>",
+                footer_template=footer,
+                prefer_css_page_size=False,
+                margin={"top": margin, "bottom": margin, "left": margin, "right": margin},
+            )
+        finally:
+            browser.close()
     return out

@@ -7,16 +7,15 @@ ASSETS = Path(__file__).parent / "assets"
 
 
 def _font_css() -> str:
-    return (
-        "@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap');"
-    )
+    # Sem CDN externo — PDF em producao/Docker nao pode depender de rede para fontes.
+    return ""
 
 
 def _page_css(size: str = "A4") -> str:
     return (
         "*{-webkit-print-color-adjust:exact;print-color-adjust:exact;}"
         "html,body{margin:0;padding:0;}"
-        "body{font-family:'Montserrat',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;"
+        "body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;"
         "color:#1A1A1A;background:#FFFFFF;}"
         "a{color:#3982DB;text-decoration:none;}"
         f"@page{{size:{size};}}"

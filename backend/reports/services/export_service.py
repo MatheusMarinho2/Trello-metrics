@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import json
+import logging
 import re
 import tempfile
 import unicodedata
@@ -9,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from django.http import HttpResponse
+
+logger = logging.getLogger(__name__)
 
 from reports.models import GeneratedReport
 from reports.services.metrics_selection_service import MetricsSelectionService
@@ -28,10 +31,14 @@ class ReportExportService:
 
     def pdf_response(self, report: GeneratedReport) -> HttpResponse:
         metrics = self._metrics_for_document(report)
-        with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / _filename(report, "pdf")
-            write_pdf_report(metrics, output)
-            content = output.read_bytes()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / _filename(report, "pdf")
+                write_pdf_report(metrics, output)
+                content = output.read_bytes()
+        except Exception:
+            logger.exception("Falha ao gerar PDF do relatorio %s", report.id)
+            raise
 
         response = HttpResponse(content, content_type="application/pdf")
         response["Content-Disposition"] = f'attachment; filename="{_filename(report, "pdf")}"'
