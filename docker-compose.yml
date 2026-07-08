@@ -19,5 +19,25 @@ services:
     volumes:
       - trello_data:/data
 
+  # Proxy HTTPS (Let's Encrypt). Subir com: docker compose --profile https up -d
+  caddy:
+    image: caddy:2-alpine
+    container_name: trello-analytics-caddy
+    restart: unless-stopped
+    profiles: ["https"]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_DOMAIN: "${APP_DOMAIN:-trello.intgest.com.br}"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
 volumes:
   trello_data:
+  caddy_data:
+  caddy_config:

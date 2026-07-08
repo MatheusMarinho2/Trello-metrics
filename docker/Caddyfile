@@ -1,0 +1,5 @@
+# HTTPS automatico via Let's Encrypt (Caddy).
+# Defina APP_DOMAIN no .env (ex.: trello.intgest.com.br).
+{$APP_DOMAIN} {
+	reverse_proxy app:80
+}

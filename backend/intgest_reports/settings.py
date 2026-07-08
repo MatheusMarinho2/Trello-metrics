@@ -74,5 +74,18 @@ INTGEST_CORS_ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 
+# Atras de proxy HTTPS (Caddy/nginx): cookies e CSRF funcionam corretamente.
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    USE_X_FORWARDED_HOST = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
 DEFAULT_TRELLO_BOARD_ID = os.getenv("TRELLO_BOARD_ID", "yo4qzLai")
 DEFAULT_TIMEZONE = os.getenv("INTGEST_DEFAULT_TIMEZONE", "America/Sao_Paulo")
