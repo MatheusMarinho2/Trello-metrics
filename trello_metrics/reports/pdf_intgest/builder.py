@@ -14,6 +14,8 @@ from trello_metrics.reports.charts import render_charts
 from trello_metrics.reports.metric_definitions import (
     management_guide_sections,
     metric_description,
+    metric_example,
+    metric_formula,
     metric_label,
     section_guide,
     table_info,
@@ -88,6 +90,7 @@ class PdfReportBuilder:
             self._bottlenecks(),
             self._quality_gates(),
             self._trends(),
+            self._antifraud(),
             self._movements(),
             self._dossier(),
         ]
@@ -145,8 +148,8 @@ class PdfReportBuilder:
         for item in guide.get("metrics") or []:
             key = item.get("key", "")
             label = metric_label(key) if key else ""
-            formula = item.get("formula") or metric_description(key)
-            example = item.get("example")
+            formula = item.get("formula") or metric_formula(key) or metric_description(key)
+            example = item.get("example") or metric_example(key)
             part = f"<strong>{esc(label)}</strong> — {esc(formula)}" if label and formula else ""
             if example:
                 part += f"<br/>Exemplo: {esc(example)}"
@@ -341,12 +344,13 @@ class PdfReportBuilder:
         return f'{self._head("Analise gerada por IA", break_page=True)}{body}</section>'
 
     def _management_guide(self) -> str:
-        if self.report_type != "management" or not self.include("metric_guide"):
+        if not self.include("metric_guide"):
             return ""
         intro = section_guide("management_intro")
         if not intro:
             return ""
-        html = f'{self._head("Guia de metricas para gestao", break_page=True)}'
+        title = intro.get("title") or "Memoria de calculo das metricas"
+        html = f'{self._head(esc(title), break_page=True)}'
         if intro.get("description"):
             html += note(f"<strong>Introducao.</strong> {esc(intro['description'])}")
         for sid in management_guide_sections():
@@ -885,6 +889,101 @@ class PdfReportBuilder:
             f'{chart_img(self.charts.get("trends_devs"))}'
             "</section>"
         )
+
+    def _antifraud(self) -> str:
+        block = self.metrics.get("antifraud") or {}
+        if not self.include("antifraud") or not block:
+            return ""
+        summary = block.get("summary") or {}
+        alerts = [
+            item
+            for item in (block.get("alerts") or [])
+            if item.get("score") in {"high", "medium"}
+        ]
+        html = (
+            f'{self._head("Antifraude — copias suspeitas", break_page=True)}'
+            + note(
+                "<strong>Objetivo.</strong> Detectar copias que reiniciam o fluxo (ex.: card "
+                "entregue/excluido/arquivado copiado de volta ao planejamento) para resetar metricas. "
+                "Copias de template (PM CLIENTE / ANALISE) sao ignoradas."
+            )
+            + self._table_intro("antifraud")
+            + '<div class="rt-kpi-grid">'
+            + metric_card("Copias no periodo", summary.get("copies_in_period", 0), None, H.NAVY)
+            + metric_card("Whitelist (template)", summary.get("whitelisted_copies_count", 0), None, H.TEAL)
+            + metric_card("Alertas high", summary.get("high_count", 0), None, "#C62828")
+            + metric_card("Alertas medium", summary.get("medium_count", 0), None, "#F57C00")
+            + "</div>"
+        )
+        if not alerts:
+            html += muted("Nenhum alerta high/medium no periodo.")
+            return html + "</section>"
+
+        rows = []
+        for item in alerts[:40]:
+            lineage = item.get("source_lineage") or {}
+            rows.append(
+                [
+                    item.get("score", ""),
+                    (item.get("card_name") or "")[:48],
+                    item.get("card_id", ""),
+                    (item.get("source_card_name") or "")[:36],
+                    lineage.get("status", ""),
+                    "Sim" if lineage.get("passed_terminal") else "Nao",
+                    item.get("dest_list") or "",
+                    item.get("actor_name") or "",
+                ]
+            )
+        html += subttl("Alertas high/medium") + table(
+            ["Score", "Card novo", "ID", "Fonte", "Status fonte", "Terminal?", "Destino", "Autor"],
+            rows,
+            align=["center", "left", "left", "left", "left", "center", "left", "left"],
+        )
+        detail_lines = []
+        for item in alerts[:12]:
+            lineage = item.get("source_lineage") or {}
+            groups = ", ".join(lineage.get("groups_visited") or []) or "-"
+            last_list = (
+                lineage.get("last_list_at_dispose")
+                or lineage.get("last_list_at_delete")
+                or lineage.get("last_list_at_copy")
+                or "-"
+            )
+            secs = lineage.get("seconds_copy_to_dispose")
+            if secs is None:
+                secs = lineage.get("seconds_copy_to_delete")
+            detail_lines.append(
+                f"<strong>{esc(item.get('score'))}</strong> · {esc(item.get('card_name'))} "
+                f"(<code>{esc(item.get('card_id'))}</code>)<br/>"
+                f"{esc(item.get('reason'))}<br/>"
+                f"Lineage: {esc(lineage.get('status'))} · ultima coluna: {esc(last_list)} · "
+                f"copia→descarte: {esc(secs if secs is not None else '-')}s · grupos: {esc(groups)}"
+            )
+            if lineage.get("recovery_note"):
+                detail_lines[-1] += f"<br/>{esc(lineage.get('recovery_note'))}"
+            visits = lineage.get("visits") or []
+            if visits:
+                visit_rows = [
+                    [
+                        (visit.get("at") or "")[:19],
+                        visit.get("event_type") or "",
+                        visit.get("list_name") or "",
+                        visit.get("group") or "",
+                        visit.get("actor_name") or "",
+                        "Sim" if visit.get("after_copy") else "Nao",
+                    ]
+                    for visit in visits[:20]
+                ]
+                html += subttl(
+                    f"Movimentos da fonte — {(item.get('source_card_name') or item.get('card_name') or '')[:50]}"
+                ) + table(
+                    ["Quando", "Evento", "Lista", "Grupo", "Quem", "Apos copia?"],
+                    visit_rows,
+                    align=["left", "left", "left", "left", "left", "center"],
+                )
+        if detail_lines:
+            html += subttl("Detalhe / lineage") + note("<br/><br/>".join(detail_lines))
+        return html + "</section>"
 
     def _movements(self) -> str:
         movements = self.metrics.get("movements") or {}

@@ -116,7 +116,22 @@
     "total_cards_metricados": "Cards metricados",
     "scope": "Escopo do relatorio",
     "selected_metrics": "Metricas selecionadas",
-    "avg_planning_ok_pct": "Planejamento ok medio (%)"
+    "avg_planning_ok_pct": "Planejamento ok medio (%)",
+    "copies_in_period": "Copias no periodo",
+    "whitelisted_copies_count": "Copias whitelist (template)",
+    "alerts_count": "Alertas antifraude",
+    "high_count": "Alertas high",
+    "medium_count": "Alertas medium",
+    "low_count": "Alertas low",
+    "score": "Score",
+    "copied_at": "Data da copia",
+    "actor_name": "Autor",
+    "dest_list": "Lista destino",
+    "dest_group": "Grupo destino",
+    "source_card_id": "ID card fonte",
+    "source_card_name": "Nome card fonte",
+    "reason": "Motivo do alerta",
+    "passed_terminal": "Fonte passou por terminal"
   },
   "descriptions": {
     "name": "Nome do colaborador conforme campo customizado ou membro do quadro Trello.",
@@ -225,74 +240,189 @@
     "total_cards_metricados": "Cards considerados pelo motor no periodo (sem templates/controle).",
     "scope": "Tipo de recorte aplicado ao relatorio gerado.",
     "selected_metrics": "Blocos de metricas escolhidos na aba Metricas.",
-    "avg_planning_ok_pct": "Media da taxa de planejamento aprovado entre solicitantes."
+    "avg_planning_ok_pct": "Media da taxa de planejamento aprovado entre solicitantes.",
+    "copies_in_period": "Total de eventos copyCard no periodo analisado.",
+    "whitelisted_copies_count": "Copias ignoradas por serem template (PM CLIENTE / ANALISE) ou isTemplate.",
+    "high_count": "Alertas high: fonte terminal ou excluida + destino planejamento/backlog.",
+    "medium_count": "Alertas medium: mesma nome da fonte/entregue ou reinicio sem evidencia terminal.",
+    "score": "Nivel de suspeita do antifraude (high, medium, low)."
   },
   "tables": {
     "requesters": {
       "description": "Consolida a atividade de cada solicitante no periodo: criacao, entrega e qualidade do planejamento.",
-      "columns": ["name", "cards_created", "cards_delivered", "in_production", "planning_ok_rate_pct", "avg_approval_human"]
+      "columns": [
+        "name",
+        "cards_created",
+        "cards_delivered",
+        "in_production",
+        "planning_ok_rate_pct",
+        "avg_approval_human"
+      ]
     },
     "developers": {
       "description": "Performance de entrega e qualidade por desenvolvedor. Pontos Fibonacci contam apenas cards atribuidos ao D-.",
-      "columns": ["name", "cards_delivered", "cards_delivered_normal", "cards_delivered_analysis", "fibonacci_normal", "fibonacci_analysis", "avg_dev_human", "acceptance_rate_pct", "rework_rate_pct", "tester_quality_returns", "peer_review_returns"]
+      "columns": [
+        "name",
+        "cards_delivered",
+        "cards_delivered_normal",
+        "cards_delivered_analysis",
+        "fibonacci_normal",
+        "fibonacci_analysis",
+        "avg_dev_human",
+        "acceptance_rate_pct",
+        "rework_rate_pct",
+        "tester_quality_returns",
+        "peer_review_returns"
+      ]
     },
     "testers": {
       "description": "Atuacao dos testers em cards tipo problema entregues no periodo.",
-      "columns": ["name", "cards_tested", "approved_first_pass", "prevented_problems", "returns_missing_reason", "retest_cycles_total"]
+      "columns": [
+        "name",
+        "cards_tested",
+        "approved_first_pass",
+        "prevented_problems",
+        "returns_missing_reason",
+        "retest_cycles_total"
+      ]
     },
     "reviewers": {
       "description": "Revisoes em par realizadas no periodo, incluindo aprovacoes, devolucoes e escapes detectados no teste.",
-      "columns": ["name", "reviews_done", "approved", "sent_back", "escaped_to_test", "approval_rate_pct", "avg_review_human"]
+      "columns": [
+        "name",
+        "reviews_done",
+        "approved",
+        "sent_back",
+        "escaped_to_test",
+        "approval_rate_pct",
+        "avg_review_human"
+      ]
     },
     "projects": {
       "description": "Volume de entrega e pontos Fibonacci por sistema/projeto.",
-      "columns": ["name", "cards_delivered", "fibonacci_normal", "fibonacci_analysis", "top_developer"]
+      "columns": [
+        "name",
+        "cards_delivered",
+        "fibonacci_normal",
+        "fibonacci_analysis",
+        "top_developer"
+      ]
     },
     "collaborators": {
       "description": "Visao consolidada por pessoa, somando todos os papeis (solicitante, dev, revisor, tester).",
-      "columns": ["name", "cards_active", "cards_delivered", "fibonacci_total", "time_human"]
+      "columns": [
+        "name",
+        "cards_active",
+        "cards_delivered",
+        "fibonacci_total",
+        "time_human"
+      ]
     },
     "bottlenecks": {
       "description": "Tempo medio de permanencia por estagio do fluxo. Identifica onde os cards mais demoram.",
-      "columns": ["title", "avg_human", "median_hours", "p85_hours", "p95_hours", "samples"]
+      "columns": [
+        "title",
+        "avg_human",
+        "median_hours",
+        "p85_hours",
+        "p95_hours",
+        "samples"
+      ]
     },
     "sla_developers": {
       "description": "Conformidade de SLA agrupada por desenvolvedor responsavel no card.",
-      "columns": ["name", "cards_evaluated", "stage_checks", "breached_count", "breached_cards", "compliance_pct"]
+      "columns": [
+        "name",
+        "cards_evaluated",
+        "stage_checks",
+        "breached_count",
+        "breached_cards",
+        "compliance_pct"
+      ]
     },
     "sla_by_stage": {
       "description": "Cumprimento de SLA por etapa monitorada do fluxo.",
-      "columns": ["title", "limit_human", "checks", "breached_count", "compliance_pct", "avg_elapsed_human"]
+      "columns": [
+        "title",
+        "limit_human",
+        "checks",
+        "breached_count",
+        "compliance_pct",
+        "avg_elapsed_human"
+      ]
     },
     "sla_team": {
       "description": "Resumo consolidado de SLA do time no periodo.",
-      "columns": ["cards_evaluated", "stage_checks", "breached_count", "compliance_pct", "current_at_risk_count", "current_breached_count"]
+      "columns": [
+        "cards_evaluated",
+        "stage_checks",
+        "breached_count",
+        "compliance_pct",
+        "current_at_risk_count",
+        "current_breached_count"
+      ]
     },
     "process_discipline": {
       "description": "Disciplina de processo: ordem canonica do fluxo, campos obrigatorios e etapas puladas.",
-      "columns": ["cards_evaluated", "compliant_count", "compliance_pct"]
+      "columns": [
+        "cards_evaluated",
+        "compliant_count",
+        "compliance_pct"
+      ]
     },
     "flow_team": {
       "description": "Metricas de fluxo do time: lead time, cycle time, eficiencia e WIP.",
-      "columns": ["lead_time", "cycle_time", "flow_efficiency", "wip_total", "little_law_predicted_lead_time_days"]
+      "columns": [
+        "lead_time",
+        "cycle_time",
+        "flow_efficiency",
+        "wip_total",
+        "little_law_predicted_lead_time_days"
+      ]
     },
     "dora": {
       "description": "Indicadores DORA de entrega: frequencia, lead time de deploy, taxa de falha e tempo de restauracao.",
-      "columns": ["deployments_evaluated", "failed_deployments", "rate_pct"]
+      "columns": [
+        "deployments_evaluated",
+        "failed_deployments",
+        "rate_pct"
+      ]
     },
     "quality_gates": {
       "description": "Conformidade da regra de dupla revisao para cards de maior complexidade.",
-      "columns": ["mandatory_compliance_pct", "double_review_mandatory_total", "double_review_mandatory_violations"]
+      "columns": [
+        "mandatory_compliance_pct",
+        "double_review_mandatory_total",
+        "double_review_mandatory_violations"
+      ]
     },
     "team_summary": {
       "description": "Resumo executivo de entrega e qualidade do time no periodo.",
-      "columns": ["cards_delivered", "quality_rate_pct", "rework_rate_pct", "total_prevented_problems", "quality_seal"]
+      "columns": [
+        "cards_delivered",
+        "quality_rate_pct",
+        "rework_rate_pct",
+        "total_prevented_problems",
+        "quality_seal"
+      ]
+    },
+    "antifraud": {
+      "description": "Detector de copias que podem resetar metricas. Templates sao whitelist. Alertas incluem lineage da fonte (viva, excluida, arquivada ou missing_history).",
+      "columns": [
+        "score",
+        "card_name",
+        "card_id",
+        "source_card_name",
+        "dest_list",
+        "actor_name",
+        "reason"
+      ]
     }
   },
   "guides": {
     "management_intro": {
-      "title": "Como ler o relatorio de gestao",
-      "description": "Este relatorio traduz o fluxo INTGEST em numeros acionaveis. Cada bloco abaixo explica o calculo metrica a metrica, com exemplo pratico. Use as regras de SLA e do fluxo canonico como referencia ao investigar desvios."
+      "title": "Como ler a memoria de calculo",
+      "description": "Cada metrica abaixo explica o calculo com formula e exemplo pratico. Use as regras de SLA e do fluxo canonico como referencia ao investigar desvios."
     },
     "sla": {
       "title": "SLA — limites de tempo por etapa",
@@ -539,6 +669,505 @@
           "example": "2 de 5 sem recomendacao => 60% completos."
         }
       ]
+    },
+    "antifraud": {
+      "title": "Antifraude — copias e reset de metricas",
+      "description": "Ignora copias de template. Para demais, monta lineage da fonte (timeline viva ou actions/deleteCard/updateCard:closed). High = padrao de reinicio suspeito.",
+      "metrics": [
+        {
+          "key": "whitelisted_copies_count",
+          "formula": "Copias de template ignoradas no score.",
+          "example": "PM CLIENTE copiado para Planejamento => whitelist."
+        },
+        {
+          "key": "high_count",
+          "formula": "Fonte terminal ou excluida + destino planning/backlog.",
+          "example": "Card em producao copiado e fonte apagada => high."
+        },
+        {
+          "key": "medium_count",
+          "formula": "Mesmo nome da fonte/entregue ou reinicio sem evidencia terminal.",
+          "example": "Copia com mesmo titulo de card entregue => medium."
+        }
+      ]
+    }
+  },
+  "formulas": {
+    "acceptance_rate_pct": {
+      "formula": "Percentual de entregas sem nenhum retorno DEV penalizado: aceitos / entregues x 100.",
+      "example": ""
+    },
+    "age_human": {
+      "formula": "Tempo desde a ultima movimentacao relevante do card no WIP.",
+      "example": ""
+    },
+    "analysis_delivered": {
+      "formula": "Cards analise que entraram em Analises finalizadas no periodo.",
+      "example": "3 analises concluidas no mes."
+    },
+    "approval_rate_pct": {
+      "formula": "Percentual de revisoes aprovadas: aprovadas / revisoes x 100.",
+      "example": ""
+    },
+    "approved": {
+      "formula": "Revisoes aprovadas sem devolucao nem escape para teste.",
+      "example": ""
+    },
+    "approved_first_pass": {
+      "formula": "Cards testados aprovados sem retorno ao DEV na primeira passagem.",
+      "example": ""
+    },
+    "avg_approval_hours": {
+      "formula": "Media de horas corridas na etapa de aprovacao para cards criados no periodo.",
+      "example": ""
+    },
+    "avg_approval_human": {
+      "formula": "Mesma media de aprovacao em formato legivel.",
+      "example": ""
+    },
+    "avg_dev_human": {
+      "formula": "Media de horas de trabalho efetivo do desenvolvedor por card entregue.",
+      "example": ""
+    },
+    "avg_dev_work_human": {
+      "formula": "Media de horas em listas de desenvolvimento por card entregue.",
+      "example": ""
+    },
+    "avg_elapsed_human": {
+      "formula": "Tempo medio consumido na etapa entre as avaliacoes do periodo.",
+      "example": ""
+    },
+    "avg_human": {
+      "formula": "Media de horas na etapa entre cards que a visitaram no periodo.",
+      "example": "Aguardando teste media 36h => candidato a gargalo."
+    },
+    "avg_pipeline_wait_human": {
+      "formula": "Media de horas aguardando em filas do fluxo (fora desenvolvimento) por card entregue.",
+      "example": ""
+    },
+    "avg_planning_hours": {
+      "formula": "Media de horas corridas na etapa de planejamento, considerando cards criados no periodo.",
+      "example": ""
+    },
+    "avg_planning_human": {
+      "formula": "Mesma media de planejamento em formato legivel (dias/horas).",
+      "example": ""
+    },
+    "avg_planning_ok_pct": {
+      "formula": "Media da taxa de planejamento aprovado entre solicitantes.",
+      "example": ""
+    },
+    "avg_review_human": {
+      "formula": "Media de horas gastas em revisao em par por revisao feita.",
+      "example": ""
+    },
+    "avg_testing_human": {
+      "formula": "Media de horas em execucao de teste por card testado.",
+      "example": ""
+    },
+    "avg_time_human": {
+      "formula": "Tempo medio por card considerando visitas ao processo.",
+      "example": ""
+    },
+    "avg_wait_test_human": {
+      "formula": "Media de horas aguardando teste por card testado.",
+      "example": ""
+    },
+    "breached_cards": {
+      "formula": "Cards distintos com ao menos 1 etapa estourada (visao por responsavel ou card).",
+      "example": "Dev Joao teve 3 cards, 2 estouraram SLA => breached_cards = 2."
+    },
+    "breached_count": {
+      "formula": "Checks em que elapsed_hours > limit_hours.",
+      "example": "Limite Dev = 48h, card ficou 52h => +1 breached_count."
+    },
+    "card_name": {
+      "formula": "Titulo do card no Trello.",
+      "example": ""
+    },
+    "cards_active": {
+      "formula": "Cards com movimentacao no periodo ainda nao entregues.",
+      "example": ""
+    },
+    "cards_created": {
+      "formula": "Quantidade de cards cuja data de criacao cai dentro do periodo analisado.",
+      "example": ""
+    },
+    "cards_delivered": {
+      "formula": "Cards entregues no periodo (movimento para lista de entrega concluida).",
+      "example": ""
+    },
+    "cards_delivered_analysis": {
+      "formula": "Entregas de cards classificados como analise.",
+      "example": ""
+    },
+    "cards_delivered_normal": {
+      "formula": "Entregas de cards tipo tarefa normal (nao analise).",
+      "example": ""
+    },
+    "cards_evaluated": {
+      "formula": "Contagem distinta de cards com ao menos uma etapa avaliada no periodo.",
+      "example": "12 cards passaram por Desenvolvimento ou Teste no mes => cards_evaluated = 12."
+    },
+    "cards_tested": {
+      "formula": "Cards tipo problema entregues que passaram pela fase de teste.",
+      "example": ""
+    },
+    "cards_with_rework": {
+      "formula": "Entregas com pelo menos um retorno DEV penalizado.",
+      "example": ""
+    },
+    "cards_with_rework_count": {
+      "formula": "Entregas com ao menos um retorno DEV penalizado.",
+      "example": ""
+    },
+    "checks": {
+      "formula": "Numero de avaliacoes de SLA na etapa (uma por passagem do card).",
+      "example": ""
+    },
+    "completion_pct": {
+      "formula": "Por etapa: cards com todos campos obrigatorios / cards na etapa x 100.",
+      "example": "Em Teste exige Tester: 8/10 com campo => 80%."
+    },
+    "compliance_pct": {
+      "formula": "(stage_checks - breached_count) / stage_checks x 100.",
+      "example": "100 checks, 8 estourados => compliance_pct = 92%."
+    },
+    "compliant_count": {
+      "formula": "Cards entregues que respeitaram a ordem canonica do fluxo sem pulos ilegais.",
+      "example": ""
+    },
+    "count": {
+      "formula": "Quantidade de cards ou ocorrencias.",
+      "example": ""
+    },
+    "current_at_risk_count": {
+      "formula": "Cards abertos agora com usage_pct >= 80% e ainda dentro do limite.",
+      "example": "SLA 40h, card ha 34h na etapa (85%) => em_risco."
+    },
+    "current_breached_count": {
+      "formula": "Cards abertos agora com tempo ja acima do limite de SLA.",
+      "example": "SLA 24h, card ha 30h aguardando teste => estourado."
+    },
+    "cycle_time": {
+      "formula": "Data entrega - primeira entrada em Desenvolvimento.",
+      "example": "Entrou em Dev dia 3, entregue dia 8 => cycle time ~120h."
+    },
+    "deployments_evaluated": {
+      "formula": "Movimentos para Em producao ou Diretamente na producao (cards problema) no periodo.",
+      "example": "15 Em producao + 2 Diretamente na producao => 17 deploys."
+    },
+    "descricao_completa_pct": {
+      "formula": "Cards com analise_realizada E recomendacao preenchidos.",
+      "example": "2 de 5 sem recomendacao => 60% completos."
+    },
+    "developer_assignment_events": {
+      "formula": "Vezes em que o campo Desenvolvedor foi preenchido apos a criacao do card.",
+      "example": ""
+    },
+    "direct_production": {
+      "formula": "Deploys pela coluna Diretamente na producao (hotfix, sem teste).",
+      "example": "2 cards hotfix — contam no DORA mas nao exigem etapas de teste na conformidade."
+    },
+    "double_review_mandatory_total": {
+      "formula": "Cards nivel 8/13 que exigem dupla revisao (par + formal).",
+      "example": ""
+    },
+    "double_review_mandatory_violations": {
+      "formula": "Entregues 8/13 que nao cumpriram par + formal.",
+      "example": "Card 13 pts so com revisao par => +1 violacao."
+    },
+    "efficiency_pct": {
+      "formula": "horas_trabalho / (horas_trabalho + horas_fila) x 100.",
+      "example": "40h trabalho + 60h fila => eficiencia = 40%."
+    },
+    "elapsed_human": {
+      "formula": "Tempo ja decorrido na etapa atual.",
+      "example": ""
+    },
+    "escaped_to_test": {
+      "formula": "Revisoes aprovadas, mas com problema detectado depois no teste.",
+      "example": ""
+    },
+    "failed_deployments": {
+      "formula": "Deploy seguido de card CORRECAO do mesmo sistema em ate 7 dias (proxy).",
+      "example": "Deploy seguido de CORRECAO Critica em 3 dias => 1 falha proxy."
+    },
+    "fibonacci_analysis": {
+      "formula": "Soma dos pontos Fibonacci de cards de analise entregues.",
+      "example": ""
+    },
+    "fibonacci_normal": {
+      "formula": "Soma dos pontos Fibonacci de cards normais entregues (somente desenvolvedor).",
+      "example": ""
+    },
+    "fibonacci_total": {
+      "formula": "Soma de pontos normais + analise.",
+      "example": ""
+    },
+    "flow_efficiency": {
+      "formula": "Mede quanto do tempo total foi trabalho ativo versus espera em filas.",
+      "example": ""
+    },
+    "in_production": {
+      "formula": "Entregues que passaram por producao ou sao cards tipo problema.",
+      "example": ""
+    },
+    "issues": {
+      "formula": "Lista de violacoes: retrocesso, etapa core pulada ou ordem invalida.",
+      "example": ""
+    },
+    "latency_hours": {
+      "formula": "Horas entre criacao do card e atribuicao do desenvolvedor.",
+      "example": ""
+    },
+    "lead_time": {
+      "formula": "Data entrega - data criacao, para cards entregues no periodo.",
+      "example": "Criado dia 1, entregue dia 8 => lead time ~168h."
+    },
+    "lead_time_deploy": {
+      "formula": "Aguardando producao ate Em producao; direct usa momento da entrada.",
+      "example": "2h em Aguardando producao + 30 min ate Em producao => 2,5h."
+    },
+    "limit_human": {
+      "formula": "Limite configurado de SLA para a etapa.",
+      "example": ""
+    },
+    "list_name": {
+      "formula": "Lista do Trello onde o card esta agora.",
+      "example": ""
+    },
+    "little_law_predicted_lead_time_days": {
+      "formula": "WIP / (entregas_periodo / dias_periodo).",
+      "example": "WIP 10, 20 entregas em 20 dias => 10 dias previstos de lead time."
+    },
+    "mandatory_compliance_pct": {
+      "formula": "cards_nivel_8_13_conformes / cards_nivel_8_13_entregues x 100.",
+      "example": "4 cards 8/13, 1 sem revisao formal => 75%."
+    },
+    "median_hours": {
+      "formula": "Mediana estatistica do tempo na etapa (horas corridas).",
+      "example": ""
+    },
+    "missing": {
+      "formula": "Campos customizados obrigatorios ainda vazios na etapa.",
+      "example": ""
+    },
+    "name": {
+      "formula": "Nome do colaborador conforme campo customizado ou membro do quadro Trello.",
+      "example": ""
+    },
+    "optional": {
+      "formula": "Indica se a etapa pode ser pulada sem violar o fluxo canonico.",
+      "example": ""
+    },
+    "p50_human": {
+      "formula": "Mediana historica de permanencia na mesma etapa (referencia).",
+      "example": ""
+    },
+    "p85_hours": {
+      "formula": "85% dos cards ficam abaixo deste tempo na etapa.",
+      "example": "P85 Dev = 72h: poucos cards demoram mais que 3 dias em Dev."
+    },
+    "p95_hours": {
+      "formula": "Percentil 95 do tempo na etapa.",
+      "example": ""
+    },
+    "peer_review_returns": {
+      "formula": "Quantidade de vezes que a revisao em par devolveu o card ao desenvolvedor.",
+      "example": ""
+    },
+    "peer_reviews_done": {
+      "formula": "Revisoes em par realizadas pelo desenvolvedor no periodo.",
+      "example": ""
+    },
+    "people_count": {
+      "formula": "Quantidade de pessoas incluidas neste recorte do relatorio.",
+      "example": ""
+    },
+    "pipeline_wait_ratio_pct": {
+      "formula": "Proporcao de espera no fluxo: espera / (trabalho + espera) x 100.",
+      "example": ""
+    },
+    "planning_ok_rate_pct": {
+      "formula": "Percentual de entregues sem retorno SUP: (entregues sem retorno SUP / total entregues) x 100.",
+      "example": ""
+    },
+    "planning_wait_hours": {
+      "formula": "Tempo em Analises para planejamento aguardando decisao do solicitante.",
+      "example": "48h medias em planejamento => gargalo de decisao."
+    },
+    "post_terminal_return": {
+      "formula": "Violacao: movimento para RETORNO apos Em producao/Diretamente/Analises finalizadas.",
+      "example": "Card em producao voltou para RETORNO DEV => processo incorreto."
+    },
+    "prevented_problems": {
+      "formula": "Retornos ao DEV por qualidade detectada na fase de teste (problemas evitados em producao).",
+      "example": ""
+    },
+    "prioridade": {
+      "formula": "Prioridade informada no card (Urgente, Critica, Alta, etc.).",
+      "example": ""
+    },
+    "quality_rate_pct": {
+      "formula": "100% - rework_rate_pct. Retrabalho = entrega com retorno DEV penalizado.",
+      "example": "10 entregas, 1 com retorno => qualidade 90%, selo Prata/Ouro conforme faixa."
+    },
+    "quality_seal": {
+      "formula": "Classificacao do time baseada na taxa de qualidade: Ouro, Prata ou Atencao.",
+      "example": ""
+    },
+    "queue_jumps_count": {
+      "formula": "Cards que passaram na frente de outro de prioridade maior.",
+      "example": "Urgente criado depois entregue antes de Critico antigo => furou fila."
+    },
+    "rate_pct": {
+      "formula": "failed_deployments / deployments_evaluated x 100.",
+      "example": "2 falhas em 18 deploys => 11,1%."
+    },
+    "requester_delivered": {
+      "formula": "Cards entregues no periodo em que a pessoa e solicitante.",
+      "example": ""
+    },
+    "retest_cycles_total": {
+      "formula": "Total de ciclos de reteste apos retorno ao DEV.",
+      "example": ""
+    },
+    "return_dev_count": {
+      "formula": "Total de retornos DEV que contam como penalidade de qualidade.",
+      "example": ""
+    },
+    "returns_missing_reason": {
+      "formula": "Retornos de teste sem motivo registrado no card.",
+      "example": ""
+    },
+    "reviews_done": {
+      "formula": "Revisoes em par concluidas no periodo.",
+      "example": ""
+    },
+    "rework_rate_pct": {
+      "formula": "Percentual de entregas com pelo menos um retorno DEV penalizado.",
+      "example": ""
+    },
+    "risk_threshold_pct": {
+      "formula": "Percentual do SLA a partir do qual o card entra em alerta em_risco.",
+      "example": ""
+    },
+    "samples": {
+      "formula": "Quantidade de cards usados no calculo estatistico.",
+      "example": ""
+    },
+    "scope": {
+      "formula": "Tipo de recorte aplicado ao relatorio gerado.",
+      "example": ""
+    },
+    "selected_metrics": {
+      "formula": "Blocos de metricas escolhidos na aba Metricas.",
+      "example": ""
+    },
+    "sent_back": {
+      "formula": "Revisoes que devolveram o card ao desenvolvedor.",
+      "example": ""
+    },
+    "sistema": {
+      "formula": "Sistema ou projeto associado ao card.",
+      "example": ""
+    },
+    "sla_basis": {
+      "formula": "Como o limite foi definido: etapa fixa, nivel Fibonacci, nivel de analise ou prioridade em retorno.",
+      "example": ""
+    },
+    "sla_ok_rate_pct": {
+      "formula": "Percentual de etapas dentro do limite de SLA para o desenvolvedor.",
+      "example": ""
+    },
+    "stage_checks": {
+      "formula": "Total de avaliacoes de etapa (cada permanencia em etapa com SLA gera 1 check).",
+      "example": "1 card passou por Dev e Teste => 2 stage_checks para esse card."
+    },
+    "standard_production": {
+      "formula": "Deploys pelo fluxo normal (apos teste/homolog).",
+      "example": "15 cards em Em producao."
+    },
+    "status": {
+      "formula": "Situacao atual em relacao ao limite de SLA.",
+      "example": ""
+    },
+    "stuck_now_count": {
+      "formula": "Cards abertos ha N+ dias na mesma etapa.",
+      "example": "Card 5 dias em Aguardando teste => risco de atraso."
+    },
+    "test_returns_missing_reason_count": {
+      "formula": "Retornos de teste sem motivo registrado no card.",
+      "example": ""
+    },
+    "tester_quality_returns": {
+      "formula": "Retornos ao DEV atribuidos a problemas encontrados na fase de teste.",
+      "example": ""
+    },
+    "tester_return_rate_pct": {
+      "formula": "Percentual de cards testados que tiveram retorno ao DEV.",
+      "example": ""
+    },
+    "time_human": {
+      "formula": "Soma de horas em todas as etapas do fluxo atribuidas ao papel.",
+      "example": ""
+    },
+    "title": {
+      "formula": "Nome da lista ou estagio fundido do fluxo.",
+      "example": ""
+    },
+    "top_developer": {
+      "formula": "Desenvolvedor com maior score no sistema (pontos x bonus de qualidade).",
+      "example": ""
+    },
+    "total_cards_metricados": {
+      "formula": "Cards considerados pelo motor no periodo (sem templates/controle).",
+      "example": ""
+    },
+    "total_prevented_problems": {
+      "formula": "Soma de retornos ao DEV detectados na fase de teste.",
+      "example": "Tester devolveu 5 cards por bug => 5 problemas evitados."
+    },
+    "total_return_dev_events": {
+      "formula": "Soma de todos os retornos DEV penalizados no periodo.",
+      "example": ""
+    },
+    "urgent_critical_pct": {
+      "formula": "Cards urgentes/criticos / total metricado x 100.",
+      "example": "40% urgentes pode indicar inflacao de prioridade."
+    },
+    "usage_pct": {
+      "formula": "Percentual do limite de SLA ja consumido.",
+      "example": ""
+    },
+    "visits": {
+      "formula": "Quantidade de passagens do card pelas listas do processo.",
+      "example": ""
+    },
+    "wip_total": {
+      "formula": "Cards abertos fora de listas terminais (Producao, Analise concluida).",
+      "example": "15 cards abertos em filas ativas => WIP = 15."
+    },
+    "worst_usage_pct": {
+      "formula": "Maior percentual de uso do SLA entre os cards avaliados.",
+      "example": ""
+    },
+    "copies_in_period": {
+      "formula": "Contagem de movements event_type=copied com data no periodo.",
+      "example": "61 copyCard no mes => copies_in_period=61."
+    },
+    "whitelisted_copies_count": {
+      "formula": "Copias cuja fonte e template (isTemplate ou padrao de nome em workflow.antifraud).",
+      "example": "55 copias do PM CLIENTE => whitelisted=55."
+    },
+    "high_count": {
+      "formula": "Alertas com score=high (fonte terminal ou deleted/missing + destino restart).",
+      "example": "Fonte em Em producao copiada para Planejamento => high."
+    },
+    "medium_count": {
+      "formula": "Alertas com score=medium (mesmo nome ou destino restart sem terminal).",
+      "example": "Copia nao-template com mesmo nome da fonte => medium."
     }
   }
 }

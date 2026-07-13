@@ -48,8 +48,8 @@ class ReportGenerationService:
             parsed_board,
             source="api" if source_config.use_live_api else "json",
         )
-        board = self.snapshot_service.load_board(snapshot)
-
+        # Calcula no board parseado (nao no roundtrip do snapshot) para nao perder
+        # source_card_id de copyCard — necessario ao antifraude.
         workflow = load_workflow_config()
         metrics = MetricsEngine(
             workflow,
@@ -57,7 +57,7 @@ class ReportGenerationService:
             month=config.month,
             history_months=config.history_months,
             timezone_name=config.timezone,
-        ).calculate(board).to_dict()
+        ).calculate(parsed_board).to_dict()
 
         filtered_metrics = self.selector.build_payload(metrics, config)
         ai_result = self.ai_service.generate(filtered_metrics, config, full_metrics=metrics)

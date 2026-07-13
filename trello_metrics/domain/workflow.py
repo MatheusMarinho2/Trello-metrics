@@ -142,6 +142,47 @@ class WorkflowConfig:
     def bottleneck_groups(self) -> tuple[str, ...]:
         return tuple(self.payload.get("bottleneck_groups", []))
 
+    def antifraud_config(self) -> dict[str, Any]:
+        return dict(self.payload.get("antifraud") or {})
+
+    def antifraud_template_name_patterns(self) -> tuple[str, ...]:
+        cfg = self.antifraud_config()
+        patterns = list(cfg.get("template_name_patterns") or [])
+        patterns.extend(self.payload.get("placeholder_card_titles") or [])
+        return tuple(patterns)
+
+    def antifraud_restart_dest_groups(self) -> frozenset[str]:
+        cfg = self.antifraud_config()
+        groups = cfg.get("restart_dest_groups") or [
+            "planning",
+            "backlog",
+            "backlog_analysis",
+            "approval",
+            "analysis_planning",
+        ]
+        return frozenset(groups)
+
+    def antifraud_terminal_groups(self) -> frozenset[str]:
+        cfg = self.antifraud_config()
+        groups = cfg.get("terminal_groups") or [
+            "production",
+            "direct_production",
+            "analysis_done",
+        ]
+        return frozenset(groups)
+
+    def is_antifraud_template_name(self, card_name: str | None) -> bool:
+        normalized = normalize_key(card_name)
+        if not normalized:
+            return False
+        for pattern in self.antifraud_template_name_patterns():
+            pattern_key = normalize_key(pattern)
+            if not pattern_key:
+                continue
+            if normalized == pattern_key or pattern_key in normalized or normalized.startswith(pattern_key):
+                return True
+        return False
+
     def required_fields_for_kind(self, kind: str) -> tuple[str, ...]:
         required = self.payload.get("required_custom_fields", {})
         fields = required.get(kind, [])

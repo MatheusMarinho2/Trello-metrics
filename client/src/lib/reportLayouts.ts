@@ -23,7 +23,8 @@ export type PreviewSection =
   | "fibonacci"
   | "trends"
   | "risk"
-  | "analysis_workflow";
+  | "analysis_workflow"
+  | "antifraud";
 
 export const REPORT_PREVIEW_SECTIONS: Record<ReportType, PreviewSection[]> = {
   general: [
@@ -34,6 +35,7 @@ export const REPORT_PREVIEW_SECTIONS: Record<ReportType, PreviewSection[]> = {
     "quality_gates",
     "discipline",
     "analysis_workflow",
+    "antifraud",
     "fibonacci",
     "collaborators",
     "developers",
@@ -58,6 +60,7 @@ export const REPORT_PREVIEW_SECTIONS: Record<ReportType, PreviewSection[]> = {
     "discipline",
     "quality_gates",
     "analysis_workflow",
+    "antifraud",
     "projects",
     "sla_dev",
     "bottlenecks",
@@ -65,7 +68,7 @@ export const REPORT_PREVIEW_SECTIONS: Record<ReportType, PreviewSection[]> = {
     "trends",
     "risk",
   ],
-  specific_metrics: ["team_summary", "sla_dev", "sla_cards", "bottlenecks", "flow", "priority", "dora"],
+  specific_metrics: ["team_summary", "sla_dev", "sla_cards", "bottlenecks", "flow", "priority", "dora", "antifraud"],
 };
 
 export const METRIC_KEY_SECTIONS: Record<string, PreviewSection[]> = {
@@ -82,6 +85,7 @@ export const METRIC_KEY_SECTIONS: Record<string, PreviewSection[]> = {
   quality_gates: ["quality_gates"],
   discipline: ["discipline"],
   analysis_workflow: ["analysis_workflow"],
+  antifraud: ["antifraud"],
 };
 
 export function allowedSectionsForReport(

@@ -34,6 +34,7 @@ METRIC_OPTIONS = [
     {"value": "card_dossier", "label": "Detalhamento de cards"},
     {"value": "collaborators", "label": "Colaboradores"},
     {"value": "trends_6m", "label": "Tendencia 6 meses"},
+    {"value": "antifraud", "label": "Antifraude"},
     {"value": "custom_fields", "label": "Campos personalizados"},
     {"value": "movements", "label": "Movimentos"},
 ]

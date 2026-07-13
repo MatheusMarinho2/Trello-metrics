@@ -275,6 +275,26 @@
     "ANALISE / INFORMAR OBJETIVO DA ANALISE",
     "ANÃLISE / INFORMAR OBJETIVO DA ANÃLISE"
   ],
+  "antifraud": {
+    "template_name_patterns": [
+      "PM CLIENTE / INFORMA O TITULO",
+      "PM CLIENTE / INFORMA O TÍTULO",
+      "ANALISE / INFORMAR OBJETIVO",
+      "ANÁLISE / INFORMAR OBJETIVO"
+    ],
+    "restart_dest_groups": [
+      "planning",
+      "backlog",
+      "backlog_analysis",
+      "approval",
+      "analysis_planning"
+    ],
+    "terminal_groups": [
+      "production",
+      "direct_production",
+      "analysis_done"
+    ]
+  },
   "return_attribution": {
     "tester_source_groups": ["testing"],
     "reviewer_source_groups": [

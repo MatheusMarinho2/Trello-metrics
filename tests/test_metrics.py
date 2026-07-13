@@ -1701,6 +1701,287 @@ class MetricsEngineTest(unittest.TestCase):
         self.assertEqual(analysis["descricao_completa_count"], 1)
         self.assertEqual(analysis["descricao_completa_pct"], 50.0)
 
+    def test_antifraud_whitelists_template_copy(self) -> None:
+        template = TrelloCard(
+            id="tpl1",
+            name="PM CLIENTE / INFORMA O TITULO DO PROBLEMA",
+            current_list_id="plan",
+            current_list_name="PLANEJAMENTO",
+            is_template=True,
+            created_at=_dt(2026, 6, 1, 10),
+        )
+        clone = TrelloCard(
+            id="clone_tpl",
+            name="PM CLIENTE / Novo problema real",
+            current_list_id="plan",
+            current_list_name="PLANEJAMENTO",
+            created_at=_dt(2026, 6, 10, 10),
+            custom_fields={"Desenvolvedor": "D-Dev.A", "Nivel": "3", "Sistema": "Legislativo"},
+        )
+        movements = [
+            MovementEvent(
+                card_id=clone.id,
+                card_name=clone.name,
+                at=_dt(2026, 6, 10, 10),
+                event_type="copied",
+                to_list_name="PLANEJAMENTO",
+                source_card_id=template.id,
+                source_card_name=template.name,
+                actor_name="User",
+            )
+        ]
+        board = BoardData(
+            id="board1",
+            name="Board",
+            url="",
+            lists={"plan": TrelloList(id="plan", name="PLANEJAMENTO")},
+            cards=[template, clone],
+            movements=movements,
+        )
+        result = MetricsEngine(self.workflow, now=_dt(2026, 6, 30), month="2026-06").calculate(
+            board
+        ).to_dict()
+        antifraud = result["antifraud"]
+        self.assertEqual(antifraud["summary"]["copies_in_period"], 1)
+        self.assertEqual(antifraud["whitelisted_copies_count"], 1)
+        self.assertEqual(antifraud["summary"]["alerts_count"], 0)
+
+    def test_antifraud_ignores_cross_board_import(self) -> None:
+        """Copia de card que nunca existiu neste board (outro quadro) nao gera alerta."""
+        clone = TrelloCard(
+            id="clone_ext",
+            name="LEGISLATIVO - Card importado de outro board",
+            current_list_id="plan",
+            current_list_name="PLANEJAMENTO",
+            created_at=_dt(2026, 6, 12, 10),
+            custom_fields={"Desenvolvedor": "D-Dev.A", "Nivel": "3", "Sistema": "Legislativo"},
+        )
+        movements = [
+            MovementEvent(
+                card_id=clone.id,
+                card_name=clone.name,
+                at=_dt(2026, 6, 12, 10),
+                event_type="copied",
+                to_list_name="PLANEJAMENTO",
+                source_card_id="external_board_card",
+                source_card_name="LEGISLATIVO - Card importado de outro board",
+                actor_name="User",
+            )
+        ]
+        board = BoardData(
+            id="board1",
+            name="Board",
+            url="",
+            lists={"plan": TrelloList(id="plan", name="PLANEJAMENTO")},
+            cards=[clone],
+            movements=movements,
+        )
+        result = MetricsEngine(self.workflow, now=_dt(2026, 6, 30), month="2026-06").calculate(
+            board
+        ).to_dict()
+        antifraud = result["antifraud"]
+        self.assertEqual(antifraud["summary"]["copies_in_period"], 1)
+        self.assertEqual(antifraud["cross_board_copies_count"], 1)
+        self.assertEqual(antifraud["summary"]["alerts_count"], 0)
+        self.assertEqual(antifraud["summary"]["same_board_copies_evaluated"], 0)
+
+    def test_antifraud_high_when_terminal_source_copied_to_planning(self) -> None:
+        source = TrelloCard(
+            id="src_done",
+            name="PM CLIENTE / Card entregue",
+            current_list_id="prod",
+            current_list_name="EM PRODUCAO",
+            created_at=_dt(2026, 6, 1, 10),
+            custom_fields={"Desenvolvedor": "D-Dev.A", "Nivel": "5", "Sistema": "Legislativo"},
+        )
+        clone = TrelloCard(
+            id="clone_done",
+            name="PM CLIENTE / Card entregue (copia)",
+            current_list_id="plan",
+            current_list_name="PLANEJAMENTO",
+            created_at=_dt(2026, 6, 20, 10),
+            custom_fields={"Desenvolvedor": "D-Dev.A", "Nivel": "5", "Sistema": "Legislativo"},
+        )
+        movements = [
+            MovementEvent(
+                card_id=source.id,
+                card_name=source.name,
+                at=_dt(2026, 6, 2, 10),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=source.id,
+                card_name=source.name,
+                at=_dt(2026, 6, 5, 10),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="EM PRODUCAO",
+            ),
+            MovementEvent(
+                card_id=clone.id,
+                card_name=clone.name,
+                at=_dt(2026, 6, 20, 10),
+                event_type="copied",
+                to_list_name="PLANEJAMENTO",
+                source_card_id=source.id,
+                source_card_name=source.name,
+                actor_name="Suspeito",
+            ),
+        ]
+        board = BoardData(
+            id="board1",
+            name="Board",
+            url="",
+            lists={
+                "dev": TrelloList(id="dev", name="EM ANDAMENTO"),
+                "prod": TrelloList(id="prod", name="EM PRODUCAO"),
+                "plan": TrelloList(id="plan", name="PLANEJAMENTO"),
+            },
+            cards=[source, clone],
+            movements=movements,
+        )
+        result = MetricsEngine(self.workflow, now=_dt(2026, 6, 30), month="2026-06").calculate(
+            board
+        ).to_dict()
+        alerts = result["antifraud"]["alerts"]
+        self.assertEqual(len(alerts), 1)
+        self.assertEqual(alerts[0]["score"], "high")
+        self.assertTrue(alerts[0]["source_lineage"]["passed_terminal"])
+        self.assertEqual(alerts[0]["card_id"], "clone_done")
+
+    def test_antifraud_high_when_deleted_source_reconstructed(self) -> None:
+        from datetime import timedelta
+
+        clone = TrelloCard(
+            id="clone_del",
+            name="LEGISLATIVO - Card reaberto via copia",
+            current_list_id="plan",
+            current_list_name="PLANEJAMENTO",
+            created_at=_dt(2026, 6, 18, 10),
+            custom_fields={"Desenvolvedor": "D-Dev.A", "Nivel": "3", "Sistema": "Legislativo"},
+        )
+        copy_at = _dt(2026, 6, 18, 10)
+        delete_at = copy_at + timedelta(seconds=30)
+        movements = [
+            MovementEvent(
+                card_id=clone.id,
+                card_name=clone.name,
+                at=copy_at,
+                event_type="copied",
+                to_list_name="PLANEJAMENTO",
+                source_card_id="src_deleted",
+                source_card_name="LEGISLATIVO - Card reaberto via copia",
+                actor_name="Suspeito",
+            ),
+            MovementEvent(
+                card_id="src_deleted",
+                card_name="LEGISLATIVO - Card reaberto via copia",
+                at=delete_at,
+                event_type="deleted",
+                to_list_name="BACKLOG",
+                from_list_name="BACKLOG",
+                actor_name="Suspeito",
+            ),
+        ]
+        board = BoardData(
+            id="board1",
+            name="Board",
+            url="",
+            lists={
+                "backlog": TrelloList(id="backlog", name="BACKLOG"),
+                "plan": TrelloList(id="plan", name="PLANEJAMENTO"),
+            },
+            cards=[clone],
+            movements=movements,
+        )
+        result = MetricsEngine(self.workflow, now=_dt(2026, 6, 30), month="2026-06").calculate(
+            board
+        ).to_dict()
+        alerts = result["antifraud"]["alerts"]
+        self.assertEqual(len(alerts), 1)
+        self.assertEqual(alerts[0]["score"], "high")
+        self.assertIn(alerts[0]["source_lineage"]["status"], {"deleted", "deleted_partial_history"})
+        self.assertEqual(alerts[0]["source_lineage"]["last_list_at_delete"], "BACKLOG")
+        self.assertTrue(alerts[0]["source_lineage"]["rapid_copy_delete"])
+        self.assertGreaterEqual(alerts[0]["source_lineage"]["visits_count"], 1)
+
+    def test_antifraud_high_when_archived_source_after_copy(self) -> None:
+        from datetime import timedelta
+
+        source = TrelloCard(
+            id="src_archived",
+            name="LEGISLATIVO - Aprovado por engano",
+            current_list_id="backlog",
+            current_list_name="BACKLOG",
+            created_at=_dt(2026, 6, 10, 9),
+            closed=True,
+            date_closed=None,
+            custom_fields={"Desenvolvedor": "D-Dev.A", "Nivel": "3", "Sistema": "Legislativo"},
+        )
+        clone = TrelloCard(
+            id="clone_arch",
+            name="LEGISLATIVO - Aprovado por engano",
+            current_list_id="plan",
+            current_list_name="PLANEJAMENTO",
+            created_at=_dt(2026, 6, 18, 10),
+            custom_fields={"Desenvolvedor": "D-Dev.A", "Nivel": "3", "Sistema": "Legislativo"},
+        )
+        copy_at = _dt(2026, 6, 18, 10)
+        archive_at = copy_at + timedelta(seconds=30)
+        movements = [
+            MovementEvent(
+                card_id=source.id,
+                card_name=source.name,
+                at=_dt(2026, 6, 17, 15),
+                event_type="moved",
+                from_list_name="AGUARDANDO APROVACAO",
+                to_list_name="BACKLOG",
+                actor_name="Suspeito",
+            ),
+            MovementEvent(
+                card_id=clone.id,
+                card_name=clone.name,
+                at=copy_at,
+                event_type="copied",
+                to_list_name="PLANEJAMENTO",
+                source_card_id=source.id,
+                source_card_name=source.name,
+                actor_name="Suspeito",
+            ),
+            MovementEvent(
+                card_id=source.id,
+                card_name=source.name,
+                at=archive_at,
+                event_type="archived",
+                to_list_name="BACKLOG",
+                from_list_name="BACKLOG",
+                actor_name="Suspeito",
+            ),
+        ]
+        board = BoardData(
+            id="board1",
+            name="Board",
+            url="",
+            lists={
+                "approval": TrelloList(id="approval", name="AGUARDANDO APROVACAO"),
+                "backlog": TrelloList(id="backlog", name="BACKLOG"),
+                "plan": TrelloList(id="plan", name="PLANEJAMENTO"),
+            },
+            cards=[source, clone],
+            movements=movements,
+        )
+        result = MetricsEngine(self.workflow, now=_dt(2026, 6, 30), month="2026-06").calculate(
+            board
+        ).to_dict()
+        alerts = result["antifraud"]["alerts"]
+        self.assertEqual(len(alerts), 1)
+        self.assertEqual(alerts[0]["score"], "high")
+        self.assertEqual(alerts[0]["source_lineage"]["status"], "archived")
+        self.assertEqual(alerts[0]["source_lineage"]["disposal"], "archived")
+        self.assertEqual(alerts[0]["source_lineage"]["last_list_at_dispose"], "BACKLOG")
+        self.assertTrue(alerts[0]["source_lineage"]["rapid_copy_dispose"])
+
     def _board(self, card: TrelloCard, movements: list[MovementEvent]) -> BoardData:
         return BoardData(
             id="board1",

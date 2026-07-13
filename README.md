@@ -216,6 +216,7 @@ gerada pelo sistema, as fontes de dados e as formulas usadas nos calculos.
 
 ### SLA e nivelamento
 
+- [`docs/sistema_metricas_trello.md`](docs/sistema_metricas_trello.md) — documentacao completa do sistema (arquitetura, metricas, deploy, API) — by Matheus Marinho
 - [`docs/sla_medicacao_e_niveis.md`](docs/sla_medicacao_e_niveis.md) — como o SLA e medido, tabela por coluna, niveis Fibonacci, analise e retornos por prioridade
 - [`docs/guia_nivelacao_tarefas.md`](docs/guia_nivelacao_tarefas.md) — guia para desenvolvedores nivelarem cards (problema e analise) em projetos Django/regra de negocio
 

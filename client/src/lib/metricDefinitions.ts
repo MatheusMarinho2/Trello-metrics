@@ -1,8 +1,11 @@
 import definitions from "../data/metric_definitions.json";
 
+type FormulaEntry = { formula?: string; example?: string };
+
 type MetricDefinitions = {
   labels: Record<string, string>;
   descriptions: Record<string, string>;
+  formulas?: Record<string, FormulaEntry>;
   tables: Record<string, { description?: string; columns?: string[] }>;
 };
 
@@ -21,6 +24,26 @@ export function metricLabel(key: string): string {
 
 export function metricDescription(key: string): string {
   return defs.descriptions[key] ?? "";
+}
+
+export function metricFormula(key: string): string {
+  return defs.formulas?.[key]?.formula ?? "";
+}
+
+export function metricExample(key: string): string {
+  return defs.formulas?.[key]?.example ?? "";
+}
+
+export function metricHelpText(key: string): string {
+  const parts: string[] = [];
+  const description = metricDescription(key);
+  const formula = metricFormula(key);
+  const example = metricExample(key);
+  if (description) parts.push(description);
+  if (formula && formula !== description) parts.push(`Formula: ${formula}`);
+  else if (formula && !description) parts.push(formula);
+  if (example) parts.push(`Exemplo: ${example}`);
+  return parts.join("\n\n");
 }
 
 export function tableInfo(tableId: string) {
@@ -44,6 +67,7 @@ export const MANAGEMENT_GUIDE_SECTIONS = [
   "sla",
   "process_discipline",
   "analysis_workflow",
+  "antifraud",
   "priority",
   "risk",
   "bottlenecks",
@@ -58,6 +82,7 @@ export const SECTION_TABLE_IDS: Record<string, string> = {
   Revisores: "reviewers",
   Testers: "testers",
   Solicitantes: "requesters",
+  "Alertas antifraude": "antifraud",
   Projetos: "projects",
   Gargalos: "bottlenecks",
   [SLA_ALERTS_TABLE_TITLE]: "sla_alerts",

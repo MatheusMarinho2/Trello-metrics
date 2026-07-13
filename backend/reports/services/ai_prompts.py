@@ -27,17 +27,23 @@ Regras obrigatorias:
 - Nao culpe o desenvolvedor quando questionable_returns ou metric_impact_note indicarem distorcao.
 - Use returns_pauses_insights para padroes (motivos comuns) e highlight_cards para exemplos concretos.
 - Use flow_column_insights para apontar colunas/etapas com maior inconsistencia (SLA, retrocesso, WIP, gargalo).
+- Use antifraud / antifraud_insights para apontar possiveis fraudes por copia de cards (reset de metricas).
+- Ignore copias de template (whitelist) e copias de outro board para este (cross_board_copies_count / import legitimo).
+- So trate como suspeita copia em que a fonte ja existia neste mesmo board e foi reiniciada (ex.: copiada para planejamento e/ou excluida/arquivada).
+- Nao acuse fraude sem evidencia no JSON.
+- Se source_status for missing_history, deleted* ou archived*, diga que o historico da fonte esta incompleto/excluido/arquivado — nao invente listas visitadas.
+- Em alertas antifraude, SEMPRE cite card_id do card novo e, se houver, source_card_id.
 - Nao exponha dados sensiveis alem do necessario.
 - Siga EXATAMENTE a estrutura markdown solicitada no prompt do usuario."""
 
 REPORT_INSTRUCTIONS: dict[str, str] = {
     "general": (
         "Relatorio GERAL do time. Analise entrega, qualidade, fluxo, SLA, DORA, disciplina "
-        "de processo e TODAS as pessoas em collaborators_names."
+        "de processo, antifraude (copias suspeitas) e TODAS as pessoas em collaborators_names."
     ),
     "management": (
         "Relatorio de GESTAO. Foque em indicadores estrategicos: fluxo, SLA, gargalos, "
-        "DORA, risco, tendencia 6 meses e qualidade de processo. "
+        "DORA, risco, tendencia 6 meses, qualidade de processo e antifraude/copias suspeitas. "
         "Resuma colaboradores apenas se houver sinal forte (top 5 positivos e top 5 atencao)."
     ),
     "individual": (
@@ -166,6 +172,18 @@ def build_user_prompt(
 - retrabalho, dupla revisao, conformidade de fluxo, SLA
 ### Entrega e valor
 - cards entregues, pontos Fibonacci, DORA (se existir)
+
+## Antifraude / copias suspeitas
+(Obrigatorio se antifraud ou antifraud_insights existir no JSON)
+### Panorama
+- copies_in_period, whitelisted_copies_count, high_count, medium_count
+### Alertas relevantes
+- liste alertas high e medium com **card_id**, nome, fonte, score, flags e motivo
+- diga se a fonte passou por terminal, foi excluida/arquivada ou esta com missing_history
+- separe copia de template (whitelist, nao e fraude) de clone suspeito de reset de metricas
+### Impacto e acao
+- explique como a copia pode distorcer entregas/SLA/qualidade do periodo
+- proponha 2-3 acoes de auditoria (revisar card, validar exclusao da fonte, alinhar processo)
 
 ## Retornos, pausas e cards de analise
 (Obrigatorio se returns_pauses_insights existir no JSON)
@@ -340,6 +358,12 @@ Comece direto em ## Retornos, pausas e cards de analise (sem repetir titulo # An
 ### Cards que merecem atencao
 (cada card com ID Trello em backticks)
 ### Recomendacoes objetivas
+
+## Antifraude / copias suspeitas
+(Obrigatorio se antifraud ou antifraud_insights existir no JSON)
+### Panorama
+### Alertas high/medium com card_id e source_status
+### Impacto em metricas e acoes de auditoria
 
 ## Revisao de qualidade e conformidade
 - dupla revisao, campos obrigatorios, violacoes de fluxo

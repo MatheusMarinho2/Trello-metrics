@@ -26,6 +26,32 @@ def metric_description(key: str) -> str:
     return (_load().get("descriptions") or {}).get(key, "")
 
 
+def metric_formula(key: str) -> str:
+    entry = (_load().get("formulas") or {}).get(key) or {}
+    return str(entry.get("formula") or "")
+
+
+def metric_example(key: str) -> str:
+    entry = (_load().get("formulas") or {}).get(key) or {}
+    return str(entry.get("example") or "")
+
+
+def metric_help_text(key: str) -> str:
+    parts: list[str] = []
+    description = metric_description(key)
+    formula = metric_formula(key)
+    example = metric_example(key)
+    if description:
+        parts.append(description)
+    if formula and formula != description:
+        parts.append(f"Formula: {formula}")
+    elif formula and not description:
+        parts.append(formula)
+    if example:
+        parts.append(f"Exemplo: {example}")
+    return "\n\n".join(parts)
+
+
 def table_info(table_id: str) -> dict[str, Any]:
     return (_load().get("tables") or {}).get(table_id, {})
 
@@ -45,6 +71,10 @@ def management_guide_sections() -> list[str]:
         "process_discipline",
         "bottlenecks",
         "quality_gates",
+        "risk",
+        "direct_production",
+        "analysis_workflow",
+        "antifraud",
     ]
 
 
@@ -100,8 +130,8 @@ def add_section_guide(story: list[Any], section_id: str, styles: Any) -> None:
         key = item.get("key", "")
         label = metric_label(key) if key else ""
         parts: list[str] = []
-        formula = item.get("formula") or metric_description(key)
-        example = item.get("example")
+        formula = item.get("formula") or metric_formula(key) or metric_description(key)
+        example = item.get("example") or metric_example(key)
         if label and formula:
             parts.append(f"<b>{_escape_text(label)}</b> — {_escape_text(formula)}")
         if example:
@@ -122,7 +152,7 @@ def add_management_guide(story: list[Any], styles: Any) -> None:
         return
 
     story.append(PageBreak())
-    story.append(Paragraph("Guia de metricas para gestao", styles["Heading1"]))
+    story.append(Paragraph(intro.get("title") or "Memoria de calculo das metricas", styles["Heading1"]))
     if intro.get("description"):
         story.append(Paragraph(_escape_text(intro["description"]), styles["BodyText"]))
         story.append(Spacer(1, 0.25 * cm))

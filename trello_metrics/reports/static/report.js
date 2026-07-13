@@ -16,7 +16,7 @@ const chartInstances = [];
 const REPORT_LAYOUTS = {
   general: {
     sections: [
-      "overview", "ai-analysis", "flow", "risk", "priority", "dora", "discipline", "analysis-workflow", "fibonacci",
+      "overview", "ai-analysis", "flow", "risk", "priority", "dora", "discipline", "analysis-workflow", "antifraud", "fibonacci",
       "collaborators", "developers", "reviewers", "testers", "requesters", "projects",
       "sla", "bottlenecks", "trends", "quality", "dossier",
     ],
@@ -36,7 +36,7 @@ const REPORT_LAYOUTS = {
   management: {
     sections: [
       "overview", "ai-analysis", "metric-guide", "flow", "risk", "priority", "dora", "discipline",
-      "analysis-workflow", "projects", "sla", "bottlenecks", "trends", "quality",
+      "analysis-workflow", "antifraud", "projects", "sla", "bottlenecks", "trends", "quality",
     ],
   },
   specific_metrics: {
@@ -1563,6 +1563,88 @@ function renderTrends() {
   }
 }
 
+function renderAntifraud() {
+  const block = METRICS.antifraud || {};
+  const container = document.getElementById("antifraud-content");
+  if (!container) return;
+  const summary = block.summary || {};
+  const alerts = (block.alerts || []).filter((item) => item.score === "high" || item.score === "medium");
+  if (!block.summary && !(block.alerts || []).length) {
+    container.innerHTML = '<div class="empty-state">Sem dados de antifraude neste relatorio.</div>';
+    return;
+  }
+  container.innerHTML = `
+    ${tableIntro("antifraud")}
+    ${renderSectionGuide("antifraud")}
+    <div class="kpi-grid">
+      ${kpi("Copias no periodo", summary.copies_in_period ?? 0, null, "primary")}
+      ${kpi("Whitelist template", summary.whitelisted_copies_count ?? block.whitelisted_copies_count ?? 0, null, "teal")}
+      ${kpi("Alertas high", summary.high_count ?? 0, null, "danger")}
+      ${kpi("Alertas medium", summary.medium_count ?? 0, null, "warning")}
+    </div>
+    ${alerts.length ? `
+      <div class="panel" style="padding:1rem;margin-top:1rem;overflow:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Score</th><th>Card novo</th><th>ID</th><th>Fonte</th>
+              <th>Status fonte</th><th>Terminal?</th><th>Destino</th><th>Autor</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${alerts.slice(0, 40).map((item) => {
+              const lineage = item.source_lineage || {};
+              return `<tr>
+                <td>${escapeHtml(item.score || "")}</td>
+                <td>${escapeHtml(item.card_name || "")}</td>
+                <td><code>${escapeHtml(item.card_id || "")}</code></td>
+                <td>${escapeHtml(item.source_card_name || "")}</td>
+                <td>${escapeHtml(lineage.status || "")}</td>
+                <td>${lineage.passed_terminal ? "Sim" : "Nao"}</td>
+                <td>${escapeHtml(item.dest_list || "")}</td>
+                <td>${escapeHtml(item.actor_name || "")}</td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div class="panel" style="padding:1rem;margin-top:1rem">
+        ${alerts.slice(0, 12).map((item) => {
+          const lineage = item.source_lineage || {};
+          const groups = (lineage.groups_visited || []).join(", ") || "-";
+          const lastList = lineage.last_list_at_dispose || lineage.last_list_at_delete || lineage.last_list_at_copy || "-";
+          const secs = lineage.seconds_copy_to_dispose ?? lineage.seconds_copy_to_delete;
+          const visits = lineage.visits || [];
+          const visitsTable = visits.length ? `
+            <div style="overflow:auto;margin-top:0.5rem">
+              <table>
+                <thead><tr><th>Quando</th><th>Evento</th><th>Lista</th><th>Grupo</th><th>Quem</th><th>Apos copia?</th></tr></thead>
+                <tbody>
+                  ${visits.map((visit) => `<tr>
+                    <td>${escapeHtml(visit.at || "-")}</td>
+                    <td>${escapeHtml(visit.event_type || "-")}</td>
+                    <td>${escapeHtml(visit.list_name || "-")}</td>
+                    <td>${escapeHtml(visit.group || "-")}</td>
+                    <td>${escapeHtml(visit.actor_name || "-")}</td>
+                    <td>${visit.after_copy ? "Sim" : "Nao"}</td>
+                  </tr>`).join("")}
+                </tbody>
+              </table>
+            </div>` : '<div class="empty-state" style="margin-top:0.5rem">Sem movimentacoes residuais alem da exclusao/arquivamento/copia.</div>';
+          return `<details style="margin-bottom:0.85rem" ${item.score === "high" ? "open" : ""}>
+            <summary><strong>${escapeHtml(item.score || "")}</strong> · ${escapeHtml(item.card_name || "")}
+            · <code>${escapeHtml(item.card_id || "")}</code></summary>
+            <div style="margin-top:0.5rem">
+              ${escapeHtml(item.reason || "")}<br/>
+              <span style="opacity:0.8">Status: ${escapeHtml(lineage.status || "")} · ultima coluna: ${escapeHtml(lastList)} · copia→descarte: ${escapeHtml(String(secs ?? "-"))}s · grupos: ${escapeHtml(groups)}</span>
+              ${lineage.recovery_note ? `<br/><em>${escapeHtml(lineage.recovery_note)}</em>` : ""}
+              ${visitsTable}
+            </div>
+          </details>`;
+        }).join("")}
+      </div>` : '<div class="empty-state">Nenhum alerta high/medium no periodo.</div>'}`;
+}
+
 function renderQuality() {
   const gates = METRICS.quality_gates || {};
   const team = METRICS.team_summary || {};
@@ -2216,6 +2298,7 @@ function init() {
   renderSla();
   renderBottlenecks();
   renderTrends();
+  renderAntifraud();
   renderQuality();
   renderDossier();
   setupDossierActions();

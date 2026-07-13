@@ -822,8 +822,11 @@ select:disabled {
 .help-tip-popover {
   position: fixed;
   z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   width: max-content;
-  max-width: 260px;
+  max-width: 320px;
   padding: 8px 10px;
   border-radius: 8px;
   background: #10253a;
@@ -833,6 +836,16 @@ select:disabled {
   line-height: 1.4;
   box-shadow: 0 8px 24px rgba(16, 37, 58, 0.18);
   pointer-events: none;
+  white-space: pre-wrap;
+}
+
+.help-tip-line {
+  display: block;
+}
+
+.help-tip-example {
+  color: #c8d9ea;
+  font-weight: 400;
 }
 
 .table-block th .help-tip,
@@ -1092,6 +1105,93 @@ select:disabled {
   margin: 4px 0 0;
   color: #64748b;
   font-size: 0.84rem;
+}
+
+.antifraud-panel {
+  margin-bottom: 14px;
+}
+
+.antifraud-alerts {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid #dbe5ef;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.antifraud-alerts h3 {
+  margin: 0 0 10px;
+}
+
+.antifraud-alert {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid #e2ebf4;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.antifraud-alert summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.antifraud-score {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+}
+
+.antifraud-score.score-high {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.antifraud-score.score-medium {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.antifraud-score.score-low {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.antifraud-summary-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.antifraud-alert-body {
+  margin-top: 10px;
+}
+
+.antifraud-alert-body p {
+  margin: 0 0 8px;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+.antifraud-meta {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: 0.84rem;
+  color: #475569;
+}
+
+.antifraud-meta code {
+  font-size: 0.78rem;
+  background: #f1f5f9;
+  padding: 1px 4px;
+  border-radius: 4px;
 }
 
 .table-scroll {

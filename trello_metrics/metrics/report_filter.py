@@ -25,6 +25,7 @@ METRIC_KEY_BUNDLES: dict[str, set[str]] = {
     "projects": {"projects"},
     "risk": {"risk_board"},
     "trends": {"trends_6m"},
+    "antifraud": {"antifraud"},
 }
 
 REPORT_TYPE_PRESETS: dict[str, set[str] | None] = {
@@ -45,6 +46,7 @@ REPORT_TYPE_PRESETS: dict[str, set[str] | None] = {
         "bottlenecks",
         "risk_board",
         "trends_6m",
+        "antifraud",
         "card_dossier",
     },
     "developers": {

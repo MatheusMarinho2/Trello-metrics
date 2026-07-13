@@ -663,7 +663,9 @@ def _list_spans(
     nao aparece no export: ancora em card.created_at e from_list da primeira acao.
     """
     ordered = sorted(events, key=lambda item: item.at)
-    lifecycle = [event for event in ordered if event.event_type in {"created", "moved"}]
+    lifecycle = [
+        event for event in ordered if event.event_type in {"created", "copied", "moved"}
+    ]
     if not lifecycle and card.created_at and card.current_list_name:
         return [
             {
@@ -678,7 +680,7 @@ def _list_spans(
     current_list: str | None = None
     current_start: datetime | None = None
 
-    if lifecycle and lifecycle[0].event_type == "created":
+    if lifecycle and lifecycle[0].event_type in {"created", "copied"}:
         current_list = lifecycle[0].to_list_name or card.current_list_name
         current_start = lifecycle[0].at
         move_events = lifecycle[1:]

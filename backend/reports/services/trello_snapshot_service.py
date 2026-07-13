@@ -101,6 +101,8 @@ class TrelloSnapshotService:
                     actor_id=event.actor_id or "",
                     actor_name=event.actor_name or "",
                     action_id=event.action_id or "",
+                    source_card_id=event.source_card_id or "",
+                    source_card_name=event.source_card_name or "",
                 )
                 for event in board.movements
             ],
@@ -171,6 +173,8 @@ class TrelloSnapshotService:
                 actor_id=item.actor_id or None,
                 actor_name=item.actor_name or None,
                 action_id=item.action_id or None,
+                source_card_id=item.source_card_id or None,
+                source_card_name=item.source_card_name or None,
             )
             for item in snapshot.movements.all()
         ]

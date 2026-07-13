@@ -95,7 +95,7 @@ def _build_custom_field_indexes(
 def _create_dates_by_card(actions: list[dict[str, Any]]) -> dict[str, Any]:
     dates: dict[str, Any] = {}
     for action in actions:
-        if action.get("type") != "createCard":
+        if action.get("type") not in {"createCard", "copyCard"}:
             continue
         card_id = (action.get("data") or {}).get("card", {}).get("id")
         if card_id and card_id not in dates:
@@ -207,13 +207,45 @@ def _parse_movements(
 
         if action_type == "copyCard":
             target = _list_from_action_ref(data.get("list"), lists)
+            source = data.get("cardSource") or {}
             movements.append(
                 _movement_from_action(
                     action,
-                    event_type="created",
+                    event_type="copied",
                     at=action_at,
                     card=card,
                     to_list=target,
+                    source_card_id=source.get("id"),
+                    source_card_name=clean_spaces(source.get("name")),
+                )
+            )
+            continue
+
+        if action_type == "deleteCard":
+            target = _list_from_action_ref(data.get("list"), lists)
+            movements.append(
+                _movement_from_action(
+                    action,
+                    event_type="deleted",
+                    at=action_at,
+                    card=card,
+                    to_list=target,
+                    from_list=target,
+                )
+            )
+            continue
+
+        if action_type == "updateCard" and "closed" in (data.get("old") or {}):
+            target = _list_from_action_ref(data.get("list"), lists)
+            card_closed = bool(card.get("closed", False))
+            movements.append(
+                _movement_from_action(
+                    action,
+                    event_type="archived" if card_closed else "unarchived",
+                    at=action_at,
+                    card=card,
+                    to_list=target,
+                    from_list=target,
                 )
             )
             continue
@@ -348,6 +380,8 @@ def _movement_from_action(
     card: dict[str, Any],
     from_list: TrelloList | None = None,
     to_list: TrelloList | None = None,
+    source_card_id: str | None = None,
+    source_card_name: str | None = None,
 ) -> MovementEvent:
     member = action.get("memberCreator") or {}
     return MovementEvent(
@@ -362,6 +396,8 @@ def _movement_from_action(
         actor_id=member.get("id") or action.get("idMemberCreator"),
         actor_name=first_non_empty(member.get("fullName"), member.get("username")),
         action_id=action.get("id"),
+        source_card_id=source_card_id or None,
+        source_card_name=source_card_name or None,
     )
 
 

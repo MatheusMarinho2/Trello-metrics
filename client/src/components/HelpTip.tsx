@@ -2,15 +2,18 @@ import { CircleHelp } from "lucide-react";
 import { useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 
-import { metricDescription } from "../lib/metricDefinitions";
+import { metricDescription, metricExample, metricFormula } from "../lib/metricDefinitions";
 
 export function HelpTip({ term }: { term: string }) {
-  const text = metricDescription(term);
+  const description = metricDescription(term);
+  const formula = metricFormula(term);
+  const example = metricExample(term);
+  const hasContent = Boolean(description || formula || example);
   const anchorRef = useRef<HTMLSpanElement>(null);
   const [open, setOpen] = useState(false);
   const [style, setStyle] = useState<CSSProperties>({});
 
-  if (!text) return null;
+  if (!hasContent) return null;
 
   function updatePosition() {
     const anchor = anchorRef.current;
@@ -18,7 +21,7 @@ export function HelpTip({ term }: { term: string }) {
 
     const rect = anchor.getBoundingClientRect();
     const margin = 8;
-    const maxWidth = 260;
+    const maxWidth = 320;
     const showBelow = rect.top < 88;
 
     let top = showBelow ? rect.bottom + margin : rect.top - margin;
@@ -38,13 +41,17 @@ export function HelpTip({ term }: { term: string }) {
     setOpen(false);
   }
 
+  const aria = [description, formula && `Formula: ${formula}`, example && `Exemplo: ${example}`]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <>
       <span
         ref={anchorRef}
         className="help-tip"
         tabIndex={0}
-        aria-label={text}
+        aria-label={aria}
         onMouseEnter={show}
         onMouseLeave={hide}
         onFocus={show}
@@ -55,7 +62,18 @@ export function HelpTip({ term }: { term: string }) {
       {open
         ? createPortal(
             <span className="help-tip-popover" style={style} role="tooltip">
-              {text}
+              {description ? <span className="help-tip-line">{description}</span> : null}
+              {formula && formula !== description ? (
+                <span className="help-tip-line">
+                  <strong>Formula:</strong> {formula}
+                </span>
+              ) : null}
+              {formula && !description ? <span className="help-tip-line">{formula}</span> : null}
+              {example ? (
+                <span className="help-tip-line help-tip-example">
+                  <strong>Exemplo:</strong> {example}
+                </span>
+              ) : null}
             </span>,
             document.body,
           )

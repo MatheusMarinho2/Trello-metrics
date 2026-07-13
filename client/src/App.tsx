@@ -60,6 +60,8 @@ import { AiMarkdown } from "./utils/aiMarkdown";
 import {
   MANAGEMENT_GUIDE_SECTIONS,
   metricDescription,
+  metricExample,
+  metricFormula,
   metricLabel,
   sectionGuide,
   SECTION_TABLE_IDS,
@@ -849,9 +851,7 @@ function App() {
                 </div>
               </div>
               <KpiStrip report={currentReport} />
-              {currentReport.report_type === "management" && (
-                <ManagementMetricGuide report={currentReport} />
-              )}
+              <MetricCalculationGuide report={currentReport} />
               <SnapshotInfo report={currentReport} />
               <AiAnalysis report={currentReport} />
               <MetricSections report={currentReport} />
@@ -1161,6 +1161,9 @@ function MetricSections({ report }: { report: GeneratedReport }) {
       {allowed.has("discipline") && metrics.process_discipline ? (
         <ObjectPanel title="Disciplina de processo" value={metrics.process_discipline} />
       ) : null}
+      {allowed.has("antifraud") && metrics.antifraud ? (
+        <AntifraudPanel antifraud={metrics.antifraud} />
+      ) : null}
       {showCardDossier && !metrics.collaborators?.length ? (
         <CardDossier title="Cards" metrics={metrics} />
       ) : null}
@@ -1219,6 +1222,9 @@ function ManagementSections({
             <MetricTable title="Analises em destaque" rows={metrics.analysis_workflow.highlight_cards} />
           ) : null}
         </>
+      ) : null}
+      {allowed.has("antifraud") && metrics.antifraud ? (
+        <AntifraudPanel antifraud={metrics.antifraud} />
       ) : null}
       {allowed.has("risk") && metrics.risk_board ? (
         <>
@@ -1379,13 +1385,13 @@ function PersonRoleSections({
   );
 }
 
-function ManagementMetricGuide({ report }: { report: GeneratedReport }) {
+function MetricCalculationGuide(_props: { report: GeneratedReport }) {
   const intro = sectionGuide("management_intro");
   const sections = MANAGEMENT_GUIDE_SECTIONS.filter((id) => id !== "management_intro");
 
   return (
     <section className="management-guide">
-      <h3>{intro.title || "Guia de metricas para gestao"}</h3>
+      <h3>{intro.title || "Memoria de calculo das metricas"}</h3>
       {intro.description ? <p className="table-description">{intro.description}</p> : null}
       {sections.map((sectionId) => {
         const guide = sectionGuide(sectionId);
@@ -1398,8 +1404,10 @@ function ManagementMetricGuide({ report }: { report: GeneratedReport }) {
               {(guide.metrics || []).map((item: { key: string; formula?: string; example?: string }) => (
                 <li key={item.key}>
                   <strong>{metricLabel(item.key)}</strong>
-                  <p>{item.formula || metricDescription(item.key)}</p>
-                  {item.example ? <p className="guide-example">Exemplo: {item.example}</p> : null}
+                  <p>{item.formula || metricFormula(item.key) || metricDescription(item.key)}</p>
+                  {(item.example || metricExample(item.key)) ? (
+                    <p className="guide-example">Exemplo: {item.example || metricExample(item.key)}</p>
+                  ) : null}
                 </li>
               ))}
             </ol>
@@ -1497,6 +1505,184 @@ function ObjectPanel({ title, value }: { title: string; value: Record<string, an
             </div>
           ))}
       </div>
+    </section>
+  );
+}
+
+type AntifraudAlert = {
+  score?: string;
+  card_id?: string;
+  card_name?: string;
+  source_card_id?: string;
+  source_card_name?: string;
+  dest_list?: string;
+  dest_group?: string;
+  actor_name?: string;
+  reason?: string;
+  flags?: string[];
+  copied_at?: string;
+  source_lineage?: {
+    status?: string;
+    passed_terminal?: boolean;
+    groups_visited?: string[];
+    deleted_at?: string;
+    archived_at?: string;
+    disposal?: string;
+    last_list_at_copy?: string;
+    last_group_at_copy?: string;
+    last_list_at_delete?: string;
+    last_list_at_dispose?: string;
+    last_group_at_delete?: string;
+    last_group_at_dispose?: string;
+    seconds_copy_to_delete?: number | null;
+    seconds_copy_to_dispose?: number | null;
+    rapid_copy_delete?: boolean;
+    rapid_copy_dispose?: boolean;
+    disposed_at?: string;
+    recovery_note?: string;
+    visits?: Array<{
+      at?: string;
+      event_type?: string;
+      list_name?: string;
+      group?: string | null;
+      actor_name?: string;
+      after_copy?: boolean;
+    }>;
+    visits_count?: number;
+  };
+};
+
+function AntifraudPanel({ antifraud }: { antifraud: Record<string, any> }) {
+  const summary = antifraud.summary ?? antifraud;
+  const alerts: AntifraudAlert[] = Array.isArray(antifraud.alerts)
+    ? antifraud.alerts.filter(
+        (item: AntifraudAlert) => item.score === "high" || item.score === "medium",
+      )
+    : [];
+
+  return (
+    <section className="antifraud-panel">
+      <ObjectPanel title="Antifraude" value={summary} />
+      {alerts.length === 0 ? (
+        <p className="table-description">Nenhum alerta high/medium no periodo.</p>
+      ) : (
+        <div className="antifraud-alerts">
+          <h3>Alertas e movimentacoes da fonte</h3>
+          {alerts.map((alert, index) => {
+            const lineage = alert.source_lineage || {};
+            const visits = Array.isArray(lineage.visits) ? lineage.visits : [];
+            return (
+              <details
+                key={`${alert.card_id || "alert"}-${index}`}
+                className={`antifraud-alert score-${alert.score || "low"}`}
+                open={alert.score === "high"}
+              >
+                <summary>
+                  <span className={`antifraud-score score-${alert.score || "low"}`}>
+                    {(alert.score || "low").toUpperCase()}
+                  </span>
+                  <span className="antifraud-summary-text">
+                    {alert.card_name || "Card sem nome"}
+                    {alert.dest_list ? ` → ${alert.dest_list}` : ""}
+                  </span>
+                </summary>
+                <div className="antifraud-alert-body">
+                  <p>{alert.reason || "Sem motivo detalhado."}</p>
+                  {lineage.recovery_note ? (
+                    <p className="table-description">{lineage.recovery_note}</p>
+                  ) : null}
+                  <div className="antifraud-meta">
+                    <span>
+                      <strong>Card novo:</strong> {alert.card_name || "-"}{" "}
+                      <code>{alert.card_id || "-"}</code>
+                    </span>
+                    <span>
+                      <strong>Fonte:</strong> {alert.source_card_name || "-"}{" "}
+                      <code>{alert.source_card_id || "-"}</code>
+                    </span>
+                    <span>
+                      <strong>Status fonte:</strong> {lineage.status || "-"}
+                    </span>
+                    <span>
+                      <strong>Ultima coluna na copia:</strong>{" "}
+                      {lineage.last_list_at_copy || lineage.last_list_at_delete || "-"}
+                      {lineage.last_group_at_copy || lineage.last_group_at_delete
+                        ? ` (${lineage.last_group_at_copy || lineage.last_group_at_delete})`
+                        : ""}
+                    </span>
+                    <span>
+                      <strong>Coluna na exclusao/arquivamento:</strong>{" "}
+                      {lineage.last_list_at_dispose || lineage.last_list_at_delete || "-"}
+                    </span>
+                    <span>
+                      <strong>Passou terminal:</strong> {lineage.passed_terminal ? "Sim" : "Nao"}
+                    </span>
+                    <span>
+                      <strong>Copia → exclusao/arquivamento:</strong>{" "}
+                      {(lineage.seconds_copy_to_dispose ?? lineage.seconds_copy_to_delete) != null
+                        ? `${lineage.seconds_copy_to_dispose ?? lineage.seconds_copy_to_delete}s${
+                            lineage.rapid_copy_dispose || lineage.rapid_copy_delete ? " (rapido)" : ""
+                          }`
+                        : "-"}
+                    </span>
+                    <span>
+                      <strong>Autor da copia:</strong> {alert.actor_name || "-"}
+                    </span>
+                    <span>
+                      <strong>Copiado em:</strong> {alert.copied_at || "-"}
+                    </span>
+                    {(lineage.groups_visited || []).length > 0 ? (
+                      <span>
+                        <strong>Grupos conhecidos:</strong> {(lineage.groups_visited || []).join(", ")}
+                      </span>
+                    ) : null}
+                    {lineage.disposed_at || lineage.deleted_at || lineage.archived_at ? (
+                      <span>
+                        <strong>
+                          Fonte {lineage.disposal === "archived" ? "arquivada" : "excluida"} em:
+                        </strong>{" "}
+                        {lineage.disposed_at || lineage.archived_at || lineage.deleted_at}
+                      </span>
+                    ) : null}
+                  </div>
+                  {visits.length > 0 ? (
+                    <div className="table-scroll">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Quando</th>
+                            <th>Evento</th>
+                            <th>Lista</th>
+                            <th>Grupo</th>
+                            <th>Quem</th>
+                            <th>Apos copia?</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visits.map((visit, visitIndex) => (
+                            <tr key={`${alert.card_id}-visit-${visitIndex}`}>
+                              <td>{visit.at || "-"}</td>
+                              <td>{visit.event_type || "-"}</td>
+                              <td>{visit.list_name || "-"}</td>
+                              <td>{visit.group || "-"}</td>
+                              <td>{visit.actor_name || "-"}</td>
+                              <td>{visit.after_copy ? "Sim" : "Nao"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="table-description">
+                      Sem movimentacoes recuperaveis da fonte no historico do board.
+                    </p>
+                  )}
+                </div>
+              </details>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }

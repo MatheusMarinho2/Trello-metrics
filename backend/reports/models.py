@@ -88,6 +88,8 @@ class TrelloMovementRecord(models.Model):
     actor_id = models.CharField(max_length=80, blank=True)
     actor_name = models.CharField(max_length=180, blank=True)
     action_id = models.CharField(max_length=80, blank=True)
+    source_card_id = models.CharField(max_length=80, blank=True)
+    source_card_name = models.CharField(max_length=300, blank=True)
 
     class Meta:
         ordering = ("at",)

@@ -8,6 +8,7 @@ from typing import Any
 from trello_metrics.domain.models import BoardData, MovementEvent, TrelloCard
 from trello_metrics.domain.workflow import WorkflowConfig
 from trello_metrics.metrics.aggregators.analysis_workflow import aggregate_analysis_workflow
+from trello_metrics.metrics.aggregators.antifraud import aggregate_antifraud
 from trello_metrics.metrics.aggregators.bottlenecks import aggregate_bottlenecks
 from trello_metrics.metrics.aggregators.card_dossier import aggregate_card_dossier
 from trello_metrics.metrics.aggregators.collaborators import aggregate_collaborators
@@ -170,6 +171,14 @@ class MetricsEngine:
             )
             payload["trends_6m"] = aggregate_trends(
                 timelines, cards, self.workflow, periods
+            )
+            payload["antifraud"] = aggregate_antifraud(
+                timelines,
+                cards,
+                board.cards,
+                board.movements,
+                self.workflow,
+                period,
             )
 
         return MetricsResult(payload)

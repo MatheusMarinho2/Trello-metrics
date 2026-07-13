@@ -79,6 +79,8 @@ class MovementEvent:
     actor_id: str | None = None
     actor_name: str | None = None
     action_id: str | None = None
+    source_card_id: str | None = None
+    source_card_name: str | None = None
 
 
 @dataclass(frozen=True)

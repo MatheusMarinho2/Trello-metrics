@@ -9,6 +9,7 @@ REPORT_LAYOUTS: dict[str, dict[str, Any]] = {
         "sections": [
             "overview",
             "team_summary",
+            "metric_guide",
             "ai",
             "flow",
             "fibonacci",
@@ -24,17 +25,19 @@ REPORT_LAYOUTS: dict[str, dict[str, Any]] = {
             "quality_gates",
             "movements",
             "analysis_workflow",
+            "antifraud",
             "dossier",
         ],
     },
     "individual": {
         "title_prefix": "Relatorio individual",
-        "sections": ["overview", "ai", "individual_summary", "dossier"],
+        "sections": ["overview", "metric_guide", "ai", "individual_summary", "dossier"],
     },
     "developers": {
         "title_prefix": "Relatorio de desenvolvedores",
         "sections": [
             "overview",
+            "metric_guide",
             "ai",
             "role_summary",
             "flow",
@@ -47,11 +50,11 @@ REPORT_LAYOUTS: dict[str, dict[str, Any]] = {
     },
     "requesters": {
         "title_prefix": "Relatorio de solicitantes",
-        "sections": ["overview", "ai", "role_summary", "requesters", "projects", "dossier"],
+        "sections": ["overview", "metric_guide", "ai", "role_summary", "requesters", "projects", "dossier"],
     },
     "testers": {
         "title_prefix": "Relatorio de testers",
-        "sections": ["overview", "ai", "role_summary", "testers", "quality_gates", "dossier"],
+        "sections": ["overview", "metric_guide", "ai", "role_summary", "testers", "quality_gates", "dossier"],
     },
     "management": {
         "title_prefix": "Relatorio de gestao",
@@ -71,11 +74,12 @@ REPORT_LAYOUTS: dict[str, dict[str, Any]] = {
             "trends",
             "quality_gates",
             "analysis_workflow",
+            "antifraud",
         ],
     },
     "specific_metrics": {
         "title_prefix": "Relatorio de metricas especificas",
-        "sections": ["overview", "role_summary", "ai", "dynamic"],
+        "sections": ["overview", "metric_guide", "role_summary", "ai", "dynamic"],
     },
 }
 
@@ -118,4 +122,5 @@ _FIXED_SECTIONS = {
     "dora",
     "discipline",
     "analysis_workflow",
+    "antifraud",
 }

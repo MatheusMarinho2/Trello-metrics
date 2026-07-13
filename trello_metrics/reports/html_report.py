@@ -61,6 +61,7 @@ def write_html_report(metrics: dict[str, Any], output_path: str | Path) -> Path:
         <a href="#sla">SLA</a>
         <a href="#bottlenecks">Gargalos</a>
         <a href="#trends">Tendencias</a>
+        <a href="#antifraud">Antifraude</a>
         <a href="#quality">Qualidade</a>
         <a href="#dossier">Dossie de cards</a>
       </nav>
@@ -187,6 +188,10 @@ def write_html_report(metrics: dict[str, Any], output_path: str | Path) -> Path:
         <section class="section" id="trends">
           <div class="section-header"><h3>Tendencias</h3><p>Historico dos ultimos meses</p></div>
           <div id="trends-content"></div>
+        </section>
+        <section class="section" id="antifraud">
+          <div class="section-header"><h3>Antifraude</h3><p>Copias suspeitas e lineage da fonte</p></div>
+          <div id="antifraud-content"></div>
         </section>
         <section class="section" id="quality">
           <div class="section-header"><h3>Qualidade</h3><p>Dupla revisao e retornos</p></div>

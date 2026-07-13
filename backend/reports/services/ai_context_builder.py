@@ -44,6 +44,7 @@ def build_ai_context(
         "risk_board",
         "fibonacci_points",
         "projects",
+        "antifraud",
     ):
         value = _pick(filtered, key) or _pick(full_metrics, key)
         if value is not None:
@@ -87,6 +88,9 @@ def build_ai_context(
         bottlenecks=_pick(full_metrics, "bottlenecks"),
         sla=_pick(full_metrics, "sla"),
         process_discipline=_pick(full_metrics, "process_discipline"),
+    )
+    context["antifraud_insights"] = _build_antifraud_insights(
+        _pick(filtered, "antifraud") or _pick(full_metrics, "antifraud")
     )
 
     return _truncate_if_needed(context)
@@ -147,6 +151,56 @@ def _pick(source: dict[str, Any], key: str) -> Any:
     return source[key]
 
 
+def _build_antifraud_insights(antifraud: Any) -> dict[str, Any] | None:
+    if not isinstance(antifraud, dict) or not antifraud:
+        return None
+    summary = antifraud.get("summary") or {}
+    alerts = []
+    for item in antifraud.get("alerts") or []:
+        if item.get("score") not in {"high", "medium"}:
+            continue
+        lineage = item.get("source_lineage") or {}
+        alerts.append(
+            {
+                "score": item.get("score"),
+                "card_id": item.get("card_id"),
+                "card_name": item.get("card_name"),
+                "source_card_id": item.get("source_card_id"),
+                "source_card_name": item.get("source_card_name"),
+                "dest_list": item.get("dest_list"),
+                "dest_group": item.get("dest_group"),
+                "actor_name": item.get("actor_name"),
+                "flags": item.get("flags") or [],
+                "reason": item.get("reason"),
+                "source_status": lineage.get("status"),
+                "passed_terminal": lineage.get("passed_terminal"),
+                "last_list_at_copy": lineage.get("last_list_at_copy"),
+                "disposal": lineage.get("disposal"),
+                "last_list_at_delete": lineage.get("last_list_at_dispose")
+                or lineage.get("last_list_at_delete"),
+                "seconds_copy_to_delete": lineage.get("seconds_copy_to_dispose")
+                if lineage.get("seconds_copy_to_dispose") is not None
+                else lineage.get("seconds_copy_to_delete"),
+                "rapid_copy_delete": lineage.get("rapid_copy_dispose")
+                if lineage.get("rapid_copy_dispose") is not None
+                else lineage.get("rapid_copy_delete"),
+                "recovery_note": lineage.get("recovery_note"),
+                "groups_visited": (lineage.get("groups_visited") or [])[:12],
+                "deleted_at": lineage.get("disposed_at")
+                or lineage.get("deleted_at")
+                or lineage.get("archived_at"),
+                "visits": (lineage.get("visits") or [])[:15],
+            }
+        )
+        if len(alerts) >= 20:
+            break
+    return {
+        "summary": summary,
+        "whitelisted_copies_count": antifraud.get("whitelisted_copies_count"),
+        "alerts": alerts,
+    }
+
+
 def _violations_by_developer(process_discipline: dict[str, Any]) -> dict[str, int]:
     counts: Counter[str] = Counter()
     violations = (process_discipline.get("flow_conformity") or {}).get("violations") or []
@@ -158,6 +212,8 @@ def _violations_by_developer(process_discipline: dict[str, Any]) -> dict[str, in
 
 
 def _summarize_section(key: str, value: Any) -> Any:
+    if key == "antifraud" and isinstance(value, dict):
+        return _build_antifraud_insights(value) or value
     if key == "flow" and isinstance(value, dict):
         team = value.get("team") or {}
         return {
