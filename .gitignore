@@ -11,3 +11,6 @@ client/dist/
 /data/
 *.pdf
 *.jsonl
+.claude/
+CLAUDE.md
+.coverage
