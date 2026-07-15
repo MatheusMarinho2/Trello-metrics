@@ -632,6 +632,7 @@ function App() {
             token={token}
             collaborators={collaborators}
             month={month}
+            onMonthChange={setMonth}
             onError={setError}
           />
         </section>
