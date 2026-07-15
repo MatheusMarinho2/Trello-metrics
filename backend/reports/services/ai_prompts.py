@@ -27,7 +27,8 @@ Regras obrigatorias:
 - Nao culpe o desenvolvedor quando questionable_returns ou metric_impact_note indicarem distorcao.
 - Use returns_pauses_insights para padroes (motivos comuns) e highlight_cards para exemplos concretos.
 - Use flow_column_insights para apontar colunas/etapas com maior inconsistencia (SLA, retrocesso, WIP, gargalo).
-- Use antifraud / antifraud_insights para apontar possiveis fraudes por copia de cards (reset de metricas).
+- Use antifraud_insights para apontar possiveis fraudes por copia de cards (reset de metricas).
+- Se antifraud_insights existir no JSON (mesmo com alerts vazio), NUNCA diga que os dados de antifraude nao foram fornecidos — analise summary/copies_in_period/whitelist.
 - Ignore copias de template (whitelist) e copias de outro board para este (cross_board_copies_count / import legitimo).
 - So trate como suspeita copia em que a fonte ja existia neste mesmo board e foi reiniciada (ex.: copiada para planejamento e/ou excluida/arquivada).
 - Nao acuse fraude sem evidencia no JSON.
@@ -38,12 +39,14 @@ Regras obrigatorias:
 
 REPORT_INSTRUCTIONS: dict[str, str] = {
     "general": (
-        "Relatorio GERAL do time. Analise entrega, qualidade, fluxo, SLA, DORA, disciplina "
+        "Relatorio GERAL do time. Analise entrega, qualidade, fluxo, SLA, DORA parcial "
+        "(apenas frequencia de deploy e lead time — sem CFR/TTR), disciplina "
         "de processo, antifraude (copias suspeitas) e TODAS as pessoas em collaborators_names."
     ),
     "management": (
         "Relatorio de GESTAO. Foque em indicadores estrategicos: fluxo, SLA, gargalos, "
-        "DORA, risco, tendencia 6 meses, qualidade de processo e antifraude/copias suspeitas. "
+        "DORA parcial (frequencia + lead time), risco, tendencia 6 meses, qualidade de processo "
+        "e antifraude/copias suspeitas. "
         "Resuma colaboradores apenas se houver sinal forte (top 5 positivos e top 5 atencao)."
     ),
     "individual": (
@@ -140,7 +143,7 @@ def build_user_prompt(
 ### 3. Quem destacou e quem precisa de apoio?
 (nomeie pessoas e cite metricas)
 ### 4. Quais riscos ameacam o proximo ciclo?
-(gargalos, SLA, DORA, violacoes de fluxo)
+(gargalos, SLA, violacoes de fluxo)
 ### 5. Plano para as proximas 2 semanas
 (acoes priorizadas, donos sugeridos quando possivel)
 
@@ -171,10 +174,10 @@ def build_user_prompt(
 ### Qualidade e processo
 - retrabalho, dupla revisao, conformidade de fluxo, SLA
 ### Entrega e valor
-- cards entregues, pontos Fibonacci, DORA (se existir)
+- cards entregues, pontos Fibonacci
 
 ## Antifraude / copias suspeitas
-(Obrigatorio se antifraud ou antifraud_insights existir no JSON)
+(Obrigatorio se antifraud ou antifraud_insights existir no JSON — NUNCA diga que os dados nao foram fornecidos se essas chaves existirem)
 ### Panorama
 - copies_in_period, whitelisted_copies_count, high_count, medium_count
 ### Alertas relevantes
@@ -220,7 +223,7 @@ def build_user_prompt(
 {collaborator_block}
 
 ## Qualidade da entrega
-- Selo, retrabalho, dupla revisao, SLA, DORA — somente o que existir no JSON
+- Selo, retrabalho, dupla revisao, SLA — somente o que existir no JSON
 
 ## Conclusao para gestao
 (3 a 4 frases objetivas sobre ganhos do mes, upgrade da equipe e proximo foco)
@@ -269,7 +272,7 @@ NAO inclua retornos/pausas, colaboradores individuais nem conclusao — isso vem
 ### 3. Quem destacou e quem precisa de apoio?
 (nomeie pessoas e cite metricas)
 ### 4. Quais riscos ameacam o proximo ciclo?
-(gargalos, SLA, DORA, violacoes de fluxo)
+(gargalos, SLA, violacoes de fluxo)
 ### 5. Plano para as proximas 2 semanas
 (acoes priorizadas, donos sugeridos quando possivel)
 
@@ -295,7 +298,7 @@ NAO inclua retornos/pausas, colaboradores individuais nem conclusao — isso vem
 ### Qualidade e processo
 - retrabalho, dupla revisao, conformidade de fluxo, SLA
 ### Entrega e valor
-- cards entregues, pontos Fibonacci, DORA (se existir)
+- cards entregues, pontos Fibonacci
 
 ---
 JSON de metricas:
@@ -360,7 +363,7 @@ Comece direto em ## Retornos, pausas e cards de analise (sem repetir titulo # An
 ### Recomendacoes objetivas
 
 ## Antifraude / copias suspeitas
-(Obrigatorio se antifraud ou antifraud_insights existir no JSON)
+(Obrigatorio se antifraud ou antifraud_insights existir no JSON — NUNCA diga que os dados nao foram fornecidos se essas chaves existirem)
 ### Panorama
 ### Alertas high/medium com card_id e source_status
 ### Impacto em metricas e acoes de auditoria
@@ -372,7 +375,7 @@ Comece direto em ## Retornos, pausas e cards de analise (sem repetir titulo # An
 {collaborator_block}
 
 ## Qualidade da entrega
-- Selo, retrabalho, dupla revisao, SLA, DORA
+- Selo, retrabalho, dupla revisao, SLA
 
 ## Conclusao para gestao
 (3 a 4 frases objetivas — OBRIGATORIO encerrar esta secao)
@@ -412,13 +415,13 @@ def build_collaborator_batch_prompt(
 - **Numeros-chave:** cards entregues/criados/ativos, pontos, qualidade, retrabalho, violacoes de fluxo
 - **Positivos:** (minimo 4 bullets com evidencia numerica)
 - **Negativos / lacunas:** (minimo 4 bullets com evidencia numerica)
-- **Retornos e pausas:** (returns_pauses_highlights + questionable_returns do lote; cite motivo/solucao e se houve injustica)
-- **Comparacao com o time:** (1-2 frases usando team_summary ou medias)
+- **Retornos e pausas:** use `returns_pauses_highlights`, `returns_by_person` e `questionable_returns_for_batch` (nomes podem ter prefixo D-/RP-/T-; trate como a mesma pessoa). Se essas listas estiverem vazias, diga que nao ha destaque para a pessoa — NAO diga que o JSON nao trouxe a secao.
+- **Comparacao com o time:** OBRIGATORIO usar `team_summary` e `team_comparison` (medias do time). Compare qualidade/retrabalho/aceitacao da pessoa vs medias. NAO diga que faltam dados de comparacao se essas chaves existirem.
 - **Recomendacao pratica:** (1 acao clara e mensuravel)
 
 Regras:
 - Nao pule nenhum nome do lote.
-- Nao invente dados ausentes — declare a lacuna.
+- Se um campo da pessoa for null, declare a lacuna desse campo — mas nao invente ausencia de secoes que existem no JSON (`team_comparison`, `returns_pauses_summary`, etc.).
 - Use role_metrics e summary de cada colaborador no JSON.
 
 ---
@@ -474,13 +477,13 @@ def build_management_user_prompt(
 ### Entrega e qualidade (team_summary)
 ### Fluxo e capacidade (flow, bottlenecks, WIP, Little)
 ### SLA e risco (sla, risk_board)
-### DORA (deployment_frequency.by_path, change_failure_rate + cfr_note — explique que CFR e proxy)
+### DORA parcial (deployment_frequency + lead_time_deploy — sem CFR/TTR)
 ### Disciplina de processo (process_discipline, post_terminal_returns)
 ### Cards de analise (analysis_workflow)
 ### Prioridade e demanda (priority, projects)
 
 ## Regras de negocio observadas no periodo
-- Diretamente na producao: hotfix para master; pode sair de Em andamento, Revisao em par ou Em revisao; sem teste/homolog; retorno apos terminal e violacao.
+- Diretamente na producao: lista de controle para quem nao passa por teste/aguardando producao. Valido: Em andamento/Revisao/Aguardando deploy -> Diretamente na producao. Violacao: Aguardando deploy -> Em producao. Retorno apos terminal tambem e violacao.
 - Analise: dev -> Analises para planejamento -> solicitante -> finalizado ou novo card.
 - Retorno pos-producao/analise finalizada: deve abrir novo card.
 
@@ -529,7 +532,7 @@ Relatorio estrategico para lideranca — sem blocos individuais de colaboradores
 
 # Analise de Gestao INTGEST — {month}
 
-Inclua: resumo executivo, indicadores (team_summary, flow, SLA, DORA com by_path e cfr_note, process_discipline, analysis_workflow, priority), regras de negocio (direct_production, terminal irreversivel), decisoes sugeridas, retornos/pausas, fluxo por coluna, trends_6m, top 5 positivos/alertas, conclusao.
+Inclua: resumo executivo, indicadores (team_summary, flow, SLA, DORA parcial freq+lead time, process_discipline, analysis_workflow, priority), regras de negocio (direct_production, terminal irreversivel), decisoes sugeridas, retornos/pausas, fluxo por coluna, trends_6m, top 5 positivos/alertas, conclusao.
 
 ---
 JSON:

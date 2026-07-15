@@ -10,6 +10,7 @@ from trello_metrics.domain.models import (
     CardDescriptionData,
     CustomFieldChange,
     MovementEvent,
+    RetornoDetail,
     TrelloCard,
     TrelloList,
 )
@@ -52,6 +53,93 @@ class BusinessHoursTest(unittest.TestCase):
         end = _dt(2026, 6, 4, 18)
         elapsed = business_hours_between(start, end, self.rules, "America/Sao_Paulo")
         self.assertEqual(elapsed, 0.5)
+
+    def test_holiday_counts_zero(self) -> None:
+        start = _dt(2026, 9, 7, 9)
+        end = _dt(2026, 9, 7, 17)
+        elapsed = business_hours_between(start, end, self.rules, "America/Sao_Paulo")
+        self.assertEqual(elapsed, 0.0)
+
+    def test_exclude_window_and_overtime(self) -> None:
+        from datetime import date, time
+
+        from trello_metrics.utils.work_calendar import (
+            CalendarException,
+            OvertimeWindow,
+            WorkCalendar,
+        )
+
+        cal = WorkCalendar(
+            exceptions=[
+                CalendarException(
+                    day=date(2026, 6, 1),
+                    kind="exclude_window",
+                    start_time=time(14, 0),
+                    end_time=time(18, 0),
+                    note="queda de energia",
+                )
+            ],
+            overtime=[
+                OvertimeWindow(
+                    day=date(2026, 6, 6),
+                    start_time=time(8, 0),
+                    end_time=time(12, 0),
+                    person="D-Dev.A",
+                    note="sabado HE",
+                )
+            ],
+        )
+        weekday = business_hours_between(
+            _dt(2026, 6, 1, 9),
+            _dt(2026, 6, 1, 17),
+            self.rules,
+            "America/Sao_Paulo",
+            work_calendar=cal,
+        )
+        self.assertEqual(weekday, 4.0)
+        saturday_none = business_hours_between(
+            _dt(2026, 6, 6, 8),
+            _dt(2026, 6, 6, 12),
+            self.rules,
+            "America/Sao_Paulo",
+            work_calendar=cal,
+            person=None,
+        )
+        saturday_ot = business_hours_between(
+            _dt(2026, 6, 6, 8),
+            _dt(2026, 6, 6, 12),
+            self.rules,
+            "America/Sao_Paulo",
+            work_calendar=cal,
+            person="D-Dev.A",
+        )
+        self.assertEqual(saturday_none, 0.0)
+        self.assertEqual(saturday_ot, 4.0)
+
+    def test_schedule_override_half_day(self) -> None:
+        from datetime import date, time
+
+        from trello_metrics.utils.work_calendar import CalendarException, WorkCalendar
+
+        cal = WorkCalendar(
+            exceptions=[
+                CalendarException(
+                    day=date(2026, 6, 5),
+                    kind="schedule_override",
+                    start_time=time(8, 0),
+                    end_time=time(12, 0),
+                    note="meio periodo",
+                )
+            ]
+        )
+        elapsed = business_hours_between(
+            _dt(2026, 6, 5, 8),
+            _dt(2026, 6, 5, 17),
+            self.rules,
+            "America/Sao_Paulo",
+            work_calendar=cal,
+        )
+        self.assertEqual(elapsed, 4.0)
 
     def test_timeline_group_hours_exclude_lunch(self) -> None:
         card = TrelloCard(
@@ -233,6 +321,86 @@ class MetricsEngineTest(unittest.TestCase):
         developers = aggregate_developers(timelines, self.period)
         dev_b = next(row for row in developers if row["name"] == "D-Dev.B")
         self.assertEqual(dev_b["peer_review_returns"], 1)
+        self.assertEqual(dev_b["suggestions_accepted"], 1)
+        # Sugestão aceita não conta como retrabalho/penalidade
+        self.assertEqual(dev_b["return_dev_count"], 0)
+        self.assertEqual(dev_b["cards_with_rework"], 0)
+
+    def test_peer_review_suggestion_does_not_lower_reviewer_score(self) -> None:
+        from trello_metrics.metrics.aggregators.reviewers import aggregate_reviewers
+
+        card = TrelloCard(
+            id="card_peer_suggest",
+            name="PM CLIENTE / Sugestao do revisor",
+            current_list_id="wait_prod",
+            current_list_name="AGUARDANDO PRODUÇÃO (LEGISLATIVO)",
+            created_at=_dt(2026, 6, 1),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.B",
+                "Revisor em Par": "RP-Dev.C",
+                "Nível": "5",
+                "Sistema": "Legislativo",
+            },
+        )
+        events = [
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 2, 9),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="REVISÃO EM PAR",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 2, 11),
+                event_type="moved",
+                from_list_name="REVISÃO EM PAR",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 3, 10),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="REVISÃO EM PAR",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 3, 12),
+                event_type="moved",
+                from_list_name="REVISÃO EM PAR",
+                to_list_name="AGUARDANDO TESTE (LEGISLATIVO)",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 3, 14),
+                event_type="moved",
+                from_list_name="EM TESTE",
+                to_list_name="AGUARDANDO PRODUÇÃO (LEGISLATIVO)",
+            ),
+        ]
+        timelines = build_card_timelines(
+            [card],
+            {card.id: events},
+            self.workflow,
+            _dt(2026, 6, 30),
+        )
+        self.assertTrue(timelines[0].peer_review_sent_back)
+        self.assertEqual(timelines[0].return_dev_by_teste_count, 0)
+        self.assertEqual(timelines[0].return_dev_by_revisao_count, 0)
+
+        reviewer = aggregate_reviewers(timelines, self.period)[0]
+        self.assertEqual(reviewer["sent_back"], 1)
+        self.assertEqual(reviewer["suggestions_accepted"], 1)
+        self.assertEqual(reviewer["suggestion_rate_pct"], 100.0)
+        self.assertEqual(reviewer["approved"], 1)
+        self.assertEqual(reviewer["escaped_to_test"], 0)
+        self.assertEqual(reviewer["approval_rate_pct"], 100.0)
 
     def test_acceptance_without_dev_return(self) -> None:
         card = TrelloCard(
@@ -264,6 +432,149 @@ class MetricsEngineTest(unittest.TestCase):
         developers = aggregate_developers(timelines, self.period)
         dev_d = next(row for row in developers if row["name"] == "D-Dev.D")
         self.assertEqual(dev_d["acceptance_rate_pct"], 100.0)
+
+    def test_post_delivery_return_does_not_block_acceptance(self) -> None:
+        card = TrelloCard(
+            id="card_post_ret",
+            name="PM CLIENTE / Retorno pos entrega",
+            current_list_id="ret",
+            current_list_name="RETORNO (DEV)",
+            created_at=_dt(2026, 6, 1, 9),
+            custom_fields={"Desenvolvedor": "D-Dev.Z", "Nível": "3", "Sistema": "PAC"},
+        )
+        events = [
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 9),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 11),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="AGUARDANDO PRODUÇÃO (PAC)",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 14),
+                event_type="moved",
+                from_list_name="AGUARDANDO PRODUÇÃO (PAC)",
+                to_list_name="RETORNO (DEV)",
+            ),
+        ]
+        timelines = build_card_timelines(
+            [card],
+            {card.id: events},
+            self.workflow,
+            _dt(2026, 6, 30),
+        )
+        self.assertEqual(timelines[0].return_dev_count, 1)
+        self.assertEqual(timelines[0].returns_before_delivery, 0)
+        self.assertTrue(timelines[0].accepted_without_dev_return)
+        self.assertEqual(timelines[0].developer_penalty_return_count, 0)
+
+    def test_archived_stops_span_hours(self) -> None:
+        card = TrelloCard(
+            id="card_arch",
+            name="PM CLIENTE / Arquivado",
+            current_list_id="dev",
+            current_list_name="EM ANDAMENTO",
+            created_at=_dt(2026, 6, 1, 9),
+            closed=True,
+            custom_fields={"Desenvolvedor": "D-Dev.A", "Nível": "3"},
+        )
+        events = [
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 9),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 11),
+                event_type="archived",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="EM ANDAMENTO",
+            ),
+        ]
+        timelines = build_card_timelines(
+            [card],
+            {card.id: events},
+            self.workflow,
+            _dt(2026, 6, 30),
+        )
+        self.assertEqual(timelines[0].archived_at, _dt(2026, 6, 1, 11))
+        self.assertFalse(timelines[0].is_open)
+        self.assertEqual(timelines[0].group_hours.get("development"), 2.0)
+
+    def test_test_cycles_count_testing_visits_only(self) -> None:
+        card = TrelloCard(
+            id="card_test_cyc",
+            name="PM CLIENTE / Um ciclo teste",
+            current_list_id="prod",
+            current_list_name="EM PRODUCAO",
+            created_at=_dt(2026, 6, 1, 9),
+            custom_fields={"Desenvolvedor": "D-Dev.A", "Tester": "T-QA", "Nível": "3"},
+        )
+        events = [
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 9),
+                event_type="created",
+                to_list_name="AGUARDANDO TESTE (LEGISLATIVO)",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 10),
+                event_type="moved",
+                from_list_name="AGUARDANDO TESTE (LEGISLATIVO)",
+                to_list_name="EM TESTE",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 11),
+                event_type="moved",
+                from_list_name="EM TESTE",
+                to_list_name="EM PRODUCAO",
+            ),
+        ]
+        timelines = build_card_timelines(
+            [card],
+            {card.id: events},
+            self.workflow,
+            _dt(2026, 6, 30),
+        )
+        self.assertEqual(timelines[0].test_cycles, 1)
+        self.assertEqual(timelines[0].retest_cycles, 0)
+
+    def test_unknown_lists_in_data_quality(self) -> None:
+        card = TrelloCard(
+            id="card_unk",
+            name="PM CLIENTE / Lista nova",
+            current_list_id="x",
+            current_list_name="LISTA QUE NAO EXISTE",
+            created_at=_dt(2026, 6, 1, 9),
+            custom_fields={"Desenvolvedor": "D-Dev.A", "Nível": "3", "Sistema": "PAC"},
+        )
+        board = self._board(card, [])
+        result = MetricsEngine(
+            self.workflow,
+            now=_dt(2026, 6, 30),
+            month="2026-06",
+        ).calculate(board).to_dict()
+        unknown = result["data_quality"]["unknown_lists"]
+        self.assertTrue(any(row["list_name"] == "LISTA QUE NAO EXISTE" for row in unknown))
 
     def test_collaborator_merges_same_base_name_across_roles(self) -> None:
         card = TrelloCard(
@@ -528,6 +839,77 @@ class MetricsEngineTest(unittest.TestCase):
         self.assertEqual(development["breached_count"], 1)
         self.assertEqual(development["sla_human"], "1.00 h")
         self.assertEqual(result["sla"]["team"]["compliance_pct"], 66.7)
+
+    def test_sla_applies_holiday_half_day_and_overtime(self) -> None:
+        from datetime import date, time
+
+        from trello_metrics.utils.work_calendar import (
+            CalendarException,
+            OvertimeWindow,
+            WorkCalendar,
+        )
+
+        cal = WorkCalendar(
+            exceptions=[
+                CalendarException(
+                    day=date(2026, 6, 8),
+                    kind="holiday",
+                    note="feriado municipal",
+                ),
+                CalendarException(
+                    day=date(2026, 6, 5),
+                    kind="schedule_override",
+                    start_time=time(8, 0),
+                    end_time=time(12, 0),
+                    note="meio periodo sexta",
+                ),
+            ],
+            overtime=[
+                OvertimeWindow(
+                    day=date(2026, 6, 6),
+                    start_time=time(8, 0),
+                    end_time=time(12, 0),
+                    person="D-Dev.A",
+                    note="HE sabado com card em andamento",
+                )
+            ],
+        )
+        card = TrelloCard(
+            id="card_sla_cal",
+            name="PM CLIENTE / SLA calendario",
+            current_list_id="dev",
+            current_list_name="EM ANDAMENTO",
+            created_at=_dt(2026, 6, 5, 8),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.A",
+                "Nivel": "13",
+                "Sistema": "Legislativo",
+                "Solicitante": "S-Genilson",
+            },
+        )
+        events = [
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 5, 8),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+        ]
+        # Sex 08-12 (meio periodo) = 4h; sab HE 08-12 = 4h; dom 0; seg feriado 0 → 8h uteis
+        result = MetricsEngine(
+            self.workflow,
+            now=_dt(2026, 6, 8, 17),
+            month="2026-06",
+            work_calendar=cal,
+        ).calculate(self._board(card, events)).to_dict()
+
+        development = next(
+            row for row in result["sla"]["cards"][0]["checks"] if row["group"] == "development"
+        )
+        self.assertEqual(development["elapsed_hours"], 8.0)
+        self.assertIn("calendario operacional", result["sla"]["policy"]["note"])
+        self.assertTrue(result.get("calendar_applied", {}).get("overtime"))
 
     def test_sla_analysis_planning_uses_analysis_level_hours(self) -> None:
         card = TrelloCard(
@@ -845,7 +1227,7 @@ class MetricsEngineTest(unittest.TestCase):
         self.assertNotIn("quality_guarantee_approved", tester)
         self.assertNotIn("approval_rate_pct", tester)
 
-    def test_waiting_test_return_dev_is_not_prevented_problem(self) -> None:
+    def test_waiting_test_return_dev_to_development_is_legitimate_prevented_problem(self) -> None:
         card = TrelloCard(
             id="card_waiting_test_return",
             name="PM CLIENTE / Retorno antes do teste",
@@ -906,26 +1288,310 @@ class MetricsEngineTest(unittest.TestCase):
                 at=_dt(2026, 6, 1, 14),
                 event_type="moved",
                 from_list_name="EM TESTE",
-                to_list_name="AGUARDANDO PRODUÃ‡ÃƒO (LEGISLATIVO)",
+                to_list_name="AGUARDANDO PRODUÇÃO (LEGISLATIVO)",
             ),
         ]
 
+        board = self._board(card, events)
         result = MetricsEngine(
             self.workflow,
             now=_dt(2026, 6, 1, 15),
             month="2026-06",
-        ).calculate(self._board(card, events)).to_dict()
+        ).calculate(board).to_dict()
+
+        timelines = build_card_timelines(
+            board.cards,
+            {card.id: events},
+            self.workflow,
+            _dt(2026, 6, 1, 15),
+        )
+        self.assertEqual(timelines[0].return_dev_by_teste_legitimate_count, 1)
+        self.assertEqual(timelines[0].return_dev_by_teste_undue_count, 0)
 
         dev = result["developers"][0]
         tester = result["testers"][0]
 
         self.assertEqual(dev["return_dev_count"], 1)
+        self.assertEqual(dev["tester_quality_returns"], 1)
+        self.assertEqual(result["team_summary"]["total_tester_quality_returns"], 1)
+        self.assertEqual(result["team_summary"]["total_prevented_problems"], 1)
+        self.assertEqual(tester["prevented_problems"], 1)
+        self.assertEqual(tester["returned_dev_for_quality"], 1)
+        self.assertEqual(tester["undue_test_returns"], 0)
+
+    def test_undue_test_return_penalizes_only_tester(self) -> None:
+        card = TrelloCard(
+            id="card_undue_return",
+            name="PM CLIENTE / Retorno indevido de teste",
+            current_list_id="wait_prod",
+            current_list_name="AGUARDANDO PRODUÇÃO (LEGISLATIVO)",
+            created_at=_dt(2026, 6, 1, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Matheus.Marinho",
+                "Revisor em Par": "RP-Joao.Mariano",
+                "Revisor": "R-Dheryk.Medeiros",
+                "Tester": "T-Genilson",
+                "Nivel": "3",
+                "Sistema": "Legislativo",
+                "Solicitante": "S-Genilson",
+            },
+            description_data=CardDescriptionData(
+                retornos=[
+                    RetornoDetail(
+                        numero=1,
+                        tipo="dev",
+                        subtipo="teste",
+                        motivo="Falso positivo",
+                        solucao="Reabrir fila de teste sem correcao",
+                    )
+                ]
+            ),
+        )
+        events = [
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 9),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 10),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="REVISAO EM PAR",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 10),
+                event_type="moved",
+                from_list_name="REVISAO EM PAR",
+                to_list_name="EM REVISAO",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 10),
+                event_type="moved",
+                from_list_name="EM REVISAO",
+                to_list_name="AGUARDANDO TESTE (LEGISLATIVO)",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 11),
+                event_type="moved",
+                from_list_name="AGUARDANDO TESTE (LEGISLATIVO)",
+                to_list_name="EM TESTE",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 12),
+                event_type="moved",
+                from_list_name="EM TESTE",
+                to_list_name="RETORNO (DEV)",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 13),
+                event_type="moved",
+                from_list_name="RETORNO (DEV)",
+                to_list_name="AGUARDANDO TESTE (LEGISLATIVO)",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 14),
+                event_type="moved",
+                from_list_name="AGUARDANDO TESTE (LEGISLATIVO)",
+                to_list_name="EM TESTE",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 15),
+                event_type="moved",
+                from_list_name="EM TESTE",
+                to_list_name="AGUARDANDO PRODUÇÃO (LEGISLATIVO)",
+            ),
+        ]
+
+        board = self._board(card, events)
+        result = MetricsEngine(
+            self.workflow,
+            now=_dt(2026, 6, 1, 16),
+            month="2026-06",
+        ).calculate(board).to_dict()
+
+        timeline = build_card_timelines(
+            board.cards, {card.id: events}, self.workflow, _dt(2026, 6, 1, 16)
+        )[0]
+        self.assertEqual(timeline.return_dev_by_teste_undue_count, 1)
+        self.assertEqual(timeline.return_dev_by_teste_legitimate_count, 0)
+        self.assertEqual(timeline.developer_penalty_return_count, 0)
+        self.assertTrue(timeline.accepted_without_dev_return)
+        self.assertEqual(len(timeline.undue_return_solutions), 1)
+        self.assertEqual(
+            timeline.undue_return_solutions[0]["solucao_label"],
+            "Solução de retorno indevido",
+        )
+        self.assertEqual(
+            timeline.undue_return_solutions[0]["solucao"],
+            "Reabrir fila de teste sem correcao",
+        )
+
+        dev = result["developers"][0]
+        tester = result["testers"][0]
+        reviewer = result["reviewers"][0]
+        formal = result["formal_reviewers"][0]
+        requester = result["requesters"][0]
+
+        self.assertEqual(dev["return_dev_count"], 0)
         self.assertEqual(dev["tester_quality_returns"], 0)
-        self.assertEqual(result["team_summary"]["total_tester_quality_returns"], 0)
+        self.assertEqual(dev["cards_with_rework"], 0)
+        self.assertEqual(dev["acceptance_rate_pct"], 100.0)
+        self.assertEqual(result["team_summary"]["total_return_dev_events"], 0)
         self.assertEqual(result["team_summary"]["total_prevented_problems"], 0)
+        self.assertEqual(result["team_summary"]["quality_rate_pct"], 100.0)
+
         self.assertEqual(tester["prevented_problems"], 0)
-        self.assertEqual(tester["returned_dev_for_quality"], 0)
-        self.assertEqual(tester["tester_return_rate_pct"], 0.0)
+        self.assertEqual(tester["undue_test_returns"], 1)
+        self.assertGreater(tester["undue_return_rate_pct"], 0)
+        self.assertEqual(tester["approved_first_pass"], 1)
+
+        self.assertEqual(reviewer["escaped_to_test"], 0)
+        self.assertEqual(reviewer["approved"], 1)
+        self.assertEqual(reviewer["approval_rate_pct"], 100.0)
+        self.assertEqual(formal["escaped_to_test"], 0)
+        self.assertEqual(formal["formal_review_passed"], 1)
+        self.assertEqual(formal["approval_rate_pct"], 100.0)
+
+        self.assertEqual(requester["gestor_premature_approvals"], 0)
+        self.assertEqual(requester["planning_ok_rate_pct"], 100.0)
+
+        ftr = result["first_time_right"]["testing"]
+        self.assertEqual(ftr["pct"], 100.0)
+
+    def test_undue_then_legitimate_isolates_penalties(self) -> None:
+        card = TrelloCard(
+            id="card_undue_then_legit",
+            name="PM CLIENTE / Indevido depois legitimo",
+            current_list_id="wait_prod",
+            current_list_name="AGUARDANDO PRODUÇÃO (LEGISLATIVO)",
+            created_at=_dt(2026, 6, 1, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Matheus.Marinho",
+                "Revisor em Par": "RP-Joao.Mariano",
+                "Revisor": "R-Dheryk.Medeiros",
+                "Tester": "T-Genilson",
+                "Nivel": "3",
+                "Sistema": "Legislativo",
+                "Solicitante": "S-Genilson",
+            },
+        )
+        events = [
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 9),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 10),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="EM TESTE",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 11),
+                event_type="moved",
+                from_list_name="EM TESTE",
+                to_list_name="RETORNO (DEV)",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 12),
+                event_type="moved",
+                from_list_name="RETORNO (DEV)",
+                to_list_name="AGUARDANDO TESTE (LEGISLATIVO)",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 13),
+                event_type="moved",
+                from_list_name="AGUARDANDO TESTE (LEGISLATIVO)",
+                to_list_name="EM TESTE",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 14),
+                event_type="moved",
+                from_list_name="EM TESTE",
+                to_list_name="RETORNO (DEV)",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 15),
+                event_type="moved",
+                from_list_name="RETORNO (DEV)",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 16),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="EM TESTE",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 17),
+                event_type="moved",
+                from_list_name="EM TESTE",
+                to_list_name="AGUARDANDO PRODUÇÃO (LEGISLATIVO)",
+            ),
+        ]
+
+        board = self._board(card, events)
+        result = MetricsEngine(
+            self.workflow,
+            now=_dt(2026, 6, 1, 18),
+            month="2026-06",
+        ).calculate(board).to_dict()
+        timeline = build_card_timelines(
+            board.cards, {card.id: events}, self.workflow, _dt(2026, 6, 1, 18)
+        )[0]
+
+        self.assertEqual(timeline.return_dev_by_teste_undue_count, 1)
+        self.assertEqual(timeline.return_dev_by_teste_legitimate_count, 1)
+        self.assertEqual(timeline.developer_penalty_return_count, 1)
+
+        dev = result["developers"][0]
+        tester = result["testers"][0]
+        reviewer = result["reviewers"][0]
+
+        self.assertEqual(dev["return_dev_count"], 1)
+        self.assertEqual(dev["tester_quality_returns"], 1)
+        self.assertEqual(tester["undue_test_returns"], 1)
+        self.assertEqual(tester["prevented_problems"], 1)
+        self.assertEqual(reviewer["escaped_to_test"], 1)
+        self.assertEqual(result["formal_reviewers"][0]["escaped_to_test"], 1)
 
     def test_placeholder_title_without_level_is_ignored(self) -> None:
         placeholder = TrelloCard(
@@ -1110,13 +1776,16 @@ class MetricsEngineTest(unittest.TestCase):
         ).calculate(board).to_dict()
 
         self.assertEqual(result["flow"]["team"]["lead_time"]["p85_hours"], 6.0)
-        self.assertEqual(result["flow"]["team"]["cycle_time"]["p85_hours"], 3.0)
+        # Cycle oficial = metric_cycle_hours (fim do pre_flow → entrega), nao so development→entrega.
+        self.assertEqual(result["flow"]["team"]["cycle_time"]["p85_hours"], 5.0)
         self.assertEqual(result["flow"]["team"]["planning_to_approval_time"]["p85_hours"], 1.0)
         self.assertEqual(result["flow"]["team"]["wip_total"], 1)
         self.assertGreater(result["flow"]["team"]["little_law"]["predicted_lead_time_days"], 0)
         self.assertEqual(result["priority"]["urgent_critical_pct"], 100.0)
         self.assertEqual(result["dora"]["deployment_frequency"]["total"], 1)
         self.assertEqual(result["dora"]["lead_time_deploy"]["median_hours"], 1.0)
+        self.assertNotIn("change_failure_rate", result["dora"])
+        self.assertNotIn("time_to_restore", result["dora"])
         self.assertEqual(result["process_discipline"]["flow_conformity"]["compliance_pct"], 100.0)
         self.assertEqual(
             result["process_discipline"]["developer_assignment_latency"]["median_hours"],
@@ -1367,11 +2036,9 @@ class MetricsEngineTest(unittest.TestCase):
         self.assertEqual(dora["deployment_frequency"]["total"], 2)
         self.assertEqual(by_path["standard_production"], 1)
         self.assertEqual(by_path["direct_production"], 1)
-        self.assertIn("PROXY", dora["cfr_note"].upper())
-        cfr = dora["change_failure_rate"]
-        self.assertEqual(cfr["failed_deployments"], 1)
-        self.assertEqual(cfr["failures"][0]["deployment_card_id"], "deploy_std")
-        self.assertEqual(cfr["failures"][0]["correction_card_id"], "corr_1")
+        self.assertNotIn("change_failure_rate", dora)
+        self.assertNotIn("time_to_restore", dora)
+        self.assertNotIn("cfr_note", dora)
 
     def test_direct_production_skips_test_in_discipline(self) -> None:
         direct = TrelloCard(
@@ -1459,6 +2126,102 @@ class MetricsEngineTest(unittest.TestCase):
         self.assertIn("skip_test", violations)
         self.assertTrue(
             any("teste" in issue.lower() for issue in violations["skip_test"]["issues"])
+        )
+
+    def test_deploy_to_direct_production_is_compliant_but_deploy_to_em_producao_is_not(self) -> None:
+        ok = TrelloCard(
+            id="deploy_to_direct",
+            name="PM CLIENTE / Deploy para diretamente",
+            current_list_id="direct",
+            current_list_name="DIRETAMENTE NA PRODUCAO",
+            created_at=_dt(2026, 6, 8, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.C",
+                "Nivel": "3",
+                "Sistema": "Legislativo",
+                "Solicitante": "S-Sol",
+            },
+        )
+        bad = TrelloCard(
+            id="deploy_to_em_prod",
+            name="PM CLIENTE / Deploy para em producao",
+            current_list_id="prod",
+            current_list_name="EM PRODUCAO",
+            created_at=_dt(2026, 6, 9, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.D",
+                "Nivel": "3",
+                "Sistema": "Legislativo",
+                "Solicitante": "S-Sol",
+            },
+        )
+        events = [
+            MovementEvent(
+                card_id=ok.id,
+                card_name=ok.name,
+                at=_dt(2026, 6, 8, 10),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=ok.id,
+                card_name=ok.name,
+                at=_dt(2026, 6, 8, 11),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="AGUARDANDO DEPLOY",
+            ),
+            MovementEvent(
+                card_id=ok.id,
+                card_name=ok.name,
+                at=_dt(2026, 6, 8, 12),
+                event_type="moved",
+                from_list_name="AGUARDANDO DEPLOY",
+                to_list_name="DIRETAMENTE NA PRODUCAO",
+            ),
+            MovementEvent(
+                card_id=bad.id,
+                card_name=bad.name,
+                at=_dt(2026, 6, 9, 10),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=bad.id,
+                card_name=bad.name,
+                at=_dt(2026, 6, 9, 11),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="AGUARDANDO DEPLOY",
+            ),
+            MovementEvent(
+                card_id=bad.id,
+                card_name=bad.name,
+                at=_dt(2026, 6, 9, 12),
+                event_type="moved",
+                from_list_name="AGUARDANDO DEPLOY",
+                to_list_name="EM PRODUCAO",
+            ),
+        ]
+        board = BoardData(
+            id="board1",
+            name="Board",
+            url="",
+            lists={},
+            cards=[ok, bad],
+            movements=events,
+        )
+        result = MetricsEngine(self.workflow, now=_dt(2026, 6, 30), month="2026-06").calculate(
+            board
+        ).to_dict()
+        violations = {
+            item["card_id"]: item
+            for item in result["process_discipline"]["flow_conformity"]["violations"]
+        }
+        self.assertNotIn("deploy_to_direct", violations)
+        self.assertIn("deploy_to_em_prod", violations)
+        self.assertTrue(
+            any("diretamente na producao" in issue.lower() for issue in violations["deploy_to_em_prod"]["issues"])
         )
 
     def test_direct_production_from_peer_review_and_review(self) -> None:
@@ -1981,6 +2744,204 @@ class MetricsEngineTest(unittest.TestCase):
         self.assertEqual(alerts[0]["source_lineage"]["disposal"], "archived")
         self.assertEqual(alerts[0]["source_lineage"]["last_list_at_dispose"], "BACKLOG")
         self.assertTrue(alerts[0]["source_lineage"]["rapid_copy_dispose"])
+
+    def test_new_flow_metrics_and_first_time_right(self) -> None:
+        card = TrelloCard(
+            id="ftr1",
+            name="PM CLIENTE / FTR",
+            current_list_id="prod",
+            current_list_name="EM PRODUCAO",
+            created_at=_dt(2026, 6, 1, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.A",
+                "Nivel": "3",
+                "Sistema": "Legislativo",
+                "Tester": "T-QA",
+            },
+        )
+        events = [
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 9),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 10),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="EM TESTE",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 11),
+                event_type="moved",
+                from_list_name="EM TESTE",
+                to_list_name="EM PRODUCAO",
+            ),
+        ]
+        board = BoardData(
+            id="b",
+            name="Board",
+            url="",
+            lists={},
+            cards=[card],
+            movements=events,
+        )
+        result = MetricsEngine(self.workflow, now=_dt(2026, 6, 30), month="2026-06").calculate(
+            board
+        ).to_dict()
+        self.assertIn("aging_baseline", result["flow"])
+        self.assertIn("net_flow", result["flow"])
+        self.assertIn("rework_ratio", result["flow"]["team"])
+        self.assertIn("first_time_right", result)
+        self.assertEqual(result["first_time_right"]["testing"]["pct"], 100.0)
+        self.assertIn("member_assignment", result)
+        self.assertIn("due_predictability", result)
+        self.assertIn("board_moves", result)
+
+    def test_due_predictability_on_time(self) -> None:
+        from trello_metrics.domain.models import DueChangeEvent
+        from trello_metrics.metrics.aggregators.predictability import aggregate_due_predictability
+
+        card = TrelloCard(
+            id="due1",
+            name="PM CLIENTE / Due",
+            current_list_id="prod",
+            current_list_name="EM PRODUCAO",
+            created_at=_dt(2026, 6, 1, 9),
+            due=_dt(2026, 6, 10, 18),
+            custom_fields={"Desenvolvedor": "D-Dev.A", "Nivel": "3"},
+        )
+        events = [
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 9),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 5, 10),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="EM PRODUCAO",
+            ),
+        ]
+        timelines = build_card_timelines([card], {card.id: events}, self.workflow, _dt(2026, 6, 30))
+        result = aggregate_due_predictability(
+            timelines,
+            [card],
+            [],
+            self.workflow,
+            self.period,
+        )
+        self.assertEqual(result["compliance_pct"], 100.0)
+        self.assertEqual(result["with_due"], 1)
+
+
+    def test_ignored_person_as_reviewer_keeps_other_collaborators(self) -> None:
+        """Jucelio nao gera metricas pessoais; card e demais colaboradores continuam."""
+        card = TrelloCard(
+            id="card_jucelio_review",
+            name="PM CLIENTE / Tarefa complexa com Jucelio",
+            current_list_id="wait_prod",
+            current_list_name="AGUARDANDO PRODUÇÃO (LEGISLATIVO)",
+            created_at=_dt(2026, 6, 1, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Matheus.Marinho",
+                "Revisor em Par": "RP-Joao.Mariano",
+                "Revisor": "R-Jucelio.Moura",
+                "Tester": "T-Genilson",
+                "Nivel": "8",
+                "Sistema": "Legislativo",
+                "Solicitante": "S-Genilson",
+            },
+        )
+        events = [
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 9),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 10),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="REVISAO EM PAR",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 11),
+                event_type="moved",
+                from_list_name="REVISAO EM PAR",
+                to_list_name="EM REVISAO",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 12),
+                event_type="moved",
+                from_list_name="EM REVISAO",
+                to_list_name="EM TESTE",
+            ),
+            MovementEvent(
+                card_id=card.id,
+                card_name=card.name,
+                at=_dt(2026, 6, 1, 13),
+                event_type="moved",
+                from_list_name="EM TESTE",
+                to_list_name="AGUARDANDO PRODUÇÃO (LEGISLATIVO)",
+            ),
+        ]
+
+        self.assertFalse(
+            self.workflow.should_ignore_card(card.name, card.custom_fields, card.labels)
+        )
+        self.assertTrue(self.workflow.should_ignore_person("R-Jucelio.Moura"))
+
+        result = MetricsEngine(
+            self.workflow,
+            now=_dt(2026, 6, 1, 14),
+            month="2026-06",
+        ).calculate(self._board(card, events)).to_dict()
+
+        self.assertEqual(result["team_summary"]["cards_delivered"], 1)
+        self.assertEqual(result["team_summary"]["double_review_mandatory_total"], 1)
+        self.assertEqual(result["team_summary"]["double_review_mandatory_violations"], 0)
+
+        dev = next(row for row in result["developers"] if row["name"] == "D-Matheus.Marinho")
+        self.assertEqual(dev["cards_delivered"], 1)
+        self.assertEqual(dev["double_review_mandatory_total"], 1)
+        self.assertEqual(dev["double_review_mandatory_violations"], 0)
+
+        peer = next(row for row in result["reviewers"] if "Joao" in row["name"])
+        self.assertEqual(peer["reviews_done"], 1)
+
+        requester = next(row for row in result["requesters"] if "Genilson" in row["name"])
+        self.assertEqual(requester["cards_delivered"], 1)
+
+        tester = next(row for row in result["testers"] if "Genilson" in row["name"])
+        self.assertEqual(tester["cards_tested"], 1)
+
+        formal_names = [row["name"] for row in result["formal_reviewers"]]
+        self.assertTrue(all("Jucelio" not in name for name in formal_names))
+
+        collab_names = " ".join(row["name"] for row in result["collaborators"])
+        self.assertNotIn("Jucelio", collab_names)
+        self.assertIn("Matheus", collab_names)
+        self.assertIn("Joao", collab_names)
 
     def _board(self, card: TrelloCard, movements: list[MovementEvent]) -> BoardData:
         return BoardData(

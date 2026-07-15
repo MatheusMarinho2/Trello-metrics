@@ -259,15 +259,15 @@ def _dev_quality_chart(temp_dir: Path, developers: list[dict[str, Any]], plt: An
     top = developers[:10]
     names = [_short_name(row.get("name", "-")) for row in top]
     acceptance = [row.get("acceptance_rate_pct", 0) for row in top]
-    returns = [row.get("peer_review_returns", 0) for row in top]
+    returns = [row.get("suggestions_accepted", row.get("peer_review_returns", 0)) for row in top]
     fig, ax1 = plt.subplots(figsize=(9, 4.5))
     ax1.bar(names, acceptance, color=COLORS["green"])
     ax1.set_ylabel("Aceitacao (%)")
     ax1.set_title("Qualidade por desenvolvedor")
     ax1.tick_params(axis="x", rotation=25)
     ax2 = ax1.twinx()
-    ax2.plot(names, returns, color=COLORS["red"], marker="o", label="Retornos par")
-    ax2.set_ylabel("Retornos revisao par")
+    ax2.plot(names, returns, color=COLORS["teal"], marker="o", label="Sugestoes aceitas")
+    ax2.set_ylabel("Sugestoes aceitas (par)")
     return _save(fig, temp_dir / "dev_quality.png")
 
 

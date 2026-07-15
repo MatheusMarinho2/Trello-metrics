@@ -64,6 +64,42 @@ class TrelloCard:
     custom_fields: dict[str, str] = field(default_factory=dict)
     description_data: CardDescriptionData = field(default_factory=CardDescriptionData)
     raw: dict[str, Any] = field(default_factory=dict)
+    member_ids: list[str] = field(default_factory=list)
+    member_names: list[str] = field(default_factory=list)
+    due: datetime | None = None
+    start: datetime | None = None
+    checklists: list[dict[str, Any]] = field(default_factory=list)
+    desc_length: int = 0
+
+
+@dataclass(frozen=True)
+class MemberEvent:
+    card_id: str
+    at: datetime
+    member_id: str
+    member_name: str
+    op: str  # add | remove
+    actor_id: str | None = None
+    actor_name: str | None = None
+
+
+@dataclass(frozen=True)
+class DueChangeEvent:
+    card_id: str
+    at: datetime
+    old_due: datetime | None
+    new_due: datetime | None
+    actor_id: str | None = None
+    actor_name: str | None = None
+
+
+@dataclass(frozen=True)
+class BoardMoveEvent:
+    card_id: str
+    at: datetime
+    direction: str  # in | out
+    other_board_id: str = ""
+    other_board_name: str = ""
 
 
 @dataclass(frozen=True)
@@ -105,4 +141,7 @@ class BoardData:
     cards: list[TrelloCard]
     movements: list[MovementEvent]
     custom_field_changes: list[CustomFieldChange] = field(default_factory=list)
+    member_events: list[MemberEvent] = field(default_factory=list)
+    due_changes: list[DueChangeEvent] = field(default_factory=list)
+    board_move_events: list[BoardMoveEvent] = field(default_factory=list)
     raw: dict[str, Any] = field(default_factory=dict)

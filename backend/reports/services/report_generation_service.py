@@ -11,10 +11,12 @@ from reports.models import GeneratedReport
 from reports.services.ai_analysis_service import AIAnalysisService
 from reports.services.metrics_selection_service import MetricsSelectionService
 from reports.services.trello_snapshot_service import TrelloSnapshotService
+from reports.services.calendar_service import load_work_calendar
 from reports.utils.text import title_or_fallback
 from trello_metrics.config import load_workflow_config
 from trello_metrics.metrics.engine import MetricsEngine
 from trello_metrics.parsers.export_loader import parse_board_export
+from trello_metrics.utils.period import parse_month
 
 
 class ReportGenerationService:
@@ -51,12 +53,18 @@ class ReportGenerationService:
         # Calcula no board parseado (nao no roundtrip do snapshot) para nao perder
         # source_card_id de copyCard — necessario ao antifraude.
         workflow = load_workflow_config()
+        period = parse_month(config.month, config.timezone) if config.month else None
+        work_calendar = load_work_calendar(
+            start=period.start.date() if period else None,
+            end=period.end.date() if period else None,
+        )
         metrics = MetricsEngine(
             workflow,
             include_templates=config.include_templates,
             month=config.month,
             history_months=config.history_months,
             timezone_name=config.timezone,
+            work_calendar=work_calendar,
         ).calculate(parsed_board).to_dict()
 
         filtered_metrics = self.selector.build_payload(metrics, config)
@@ -99,6 +107,8 @@ def _report_title(config: ReportGenerationConfig, board_info: dict[str, Any]) ->
         "developers": "Relatorio de desenvolvedores",
         "requesters": "Relatorio de solicitantes",
         "testers": "Relatorio de testers",
+        "reviewers": "Relatorio de revisao em par",
+        "formal_reviewers": "Relatorio de revisores",
         "management": "Relatorio de gestao",
         "specific_metrics": "Relatorio de metricas especificas",
     }.get(config.report_type, "Relatorio")

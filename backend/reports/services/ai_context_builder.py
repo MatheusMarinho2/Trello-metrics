@@ -6,8 +6,10 @@ from typing import Any
 
 from reports.services.ai_flow_context import build_flow_column_insights
 from reports.services.ai_returns_context import (
+    batch_name_keys,
     build_returns_pauses_insights,
     highlights_for_people,
+    names_match,
 )
 
 
@@ -44,7 +46,6 @@ def build_ai_context(
         "risk_board",
         "fibonacci_points",
         "projects",
-        "antifraud",
     ):
         value = _pick(filtered, key) or _pick(full_metrics, key)
         if value is not None:
@@ -89,9 +90,10 @@ def build_ai_context(
         sla=_pick(full_metrics, "sla"),
         process_discipline=_pick(full_metrics, "process_discipline"),
     )
-    context["antifraud_insights"] = _build_antifraud_insights(
-        _pick(filtered, "antifraud") or _pick(full_metrics, "antifraud")
-    )
+    # Uma unica chave de antifraude para o prompt (evita duplicar e perder no truncate)
+    antifraud_src = _pick(filtered, "antifraud") or _pick(full_metrics, "antifraud")
+    context["antifraud_insights"] = _build_antifraud_insights(antifraud_src)
+    context.pop("antifraud", None)
 
     return _truncate_if_needed(context)
 
@@ -116,6 +118,7 @@ def context_for_collaborator_batch(
         row for row in (context.get("collaborators") or [])
         if row.get("name") in name_set
     ]
+    insights = context.get("returns_pauses_insights") or {}
     return {
         "period": context.get("period"),
         "report_type": context.get("report_type"),
@@ -124,25 +127,101 @@ def context_for_collaborator_batch(
         "batch_total": batch_total,
         "batch_names": names,
         "collaborators_batch": rows,
-        "returns_pauses_highlights": highlights_for_people(
-            context.get("returns_pauses_insights") or {},
-            names,
-        ),
-        "questionable_returns_for_batch": [
-            item
-            for item in (context.get("returns_pauses_insights") or {}).get("questionable_returns") or []
-            if any(
-                person in names
-                for person in (
-                    item.get("desenvolvedor"),
-                    item.get("tester"),
-                    item.get("revisor_par"),
-                    item.get("revisor"),
-                )
-                if person
-            )
-        ][:8],
+        "team_summary": context.get("team_summary"),
+        "team_comparison": _team_comparison_baseline(context),
+        "returns_pauses_summary": _returns_pauses_summary(insights),
+        "returns_pauses_highlights": highlights_for_people(insights, names),
+        "returns_by_person": _returns_by_person_for_names(insights, names),
+        "questionable_returns_for_batch": _questionable_returns_for_names(insights, names),
     }
+
+
+def _team_comparison_baseline(context: dict[str, Any]) -> dict[str, Any]:
+    team = context.get("team_summary") or {}
+    developers = context.get("developers") or []
+    quality_values = [
+        float(row["quality_rate_pct"])
+        for row in developers
+        if row.get("quality_rate_pct") is not None
+    ]
+    rework_values = [
+        float(row["rework_rate_pct"])
+        for row in developers
+        if row.get("rework_rate_pct") is not None
+    ]
+    acceptance_values = [
+        float(row["acceptance_rate_pct"])
+        for row in developers
+        if row.get("acceptance_rate_pct") is not None
+    ]
+    return {
+        "team_cards_delivered": team.get("cards_delivered"),
+        "team_quality_rate_pct": team.get("quality_rate_pct"),
+        "team_rework_rate_pct": team.get("rework_rate_pct"),
+        "team_acceptance_rate_pct": team.get("acceptance_rate_pct"),
+        "team_return_dev_events": team.get("total_return_dev_events"),
+        "developers_avg_quality_rate_pct": (
+            round(sum(quality_values) / len(quality_values), 1) if quality_values else None
+        ),
+        "developers_avg_rework_rate_pct": (
+            round(sum(rework_values) / len(rework_values), 1) if rework_values else None
+        ),
+        "developers_avg_acceptance_rate_pct": (
+            round(sum(acceptance_values) / len(acceptance_values), 1)
+            if acceptance_values
+            else None
+        ),
+    }
+
+
+def _returns_pauses_summary(insights: dict[str, Any]) -> dict[str, Any]:
+    if not insights:
+        return {"available": False}
+    fairness = insights.get("return_fairness_summary") or {}
+    return {
+        "available": True,
+        "cards_with_returns": insights.get("cards_with_returns"),
+        "cards_with_pauses": insights.get("cards_with_pauses"),
+        "total_return_events": insights.get("total_return_events"),
+        "total_pause_events": insights.get("total_pause_events"),
+        "questionable_returns_count": len(insights.get("questionable_returns") or []),
+        "possibly_unfair_count": fairness.get("possibly_unfair_count"),
+        "team_totals": insights.get("team_totals"),
+    }
+
+
+def _returns_by_person_for_names(
+    insights: dict[str, Any],
+    names: list[str],
+) -> dict[str, Any]:
+    by_person = insights.get("by_person") or {}
+    name_keys = batch_name_keys(names)
+    matched: dict[str, Any] = {}
+    for person_name, payload in by_person.items():
+        if names_match(str(person_name), name_keys):
+            matched[str(person_name)] = payload
+    return matched
+
+
+def _questionable_returns_for_names(
+    insights: dict[str, Any],
+    names: list[str],
+) -> list[dict[str, Any]]:
+    name_keys = batch_name_keys(names)
+    rows = []
+    for item in insights.get("questionable_returns") or []:
+        people = (
+            item.get("desenvolvedor"),
+            item.get("tester"),
+            item.get("revisor_par"),
+            item.get("revisor"),
+            item.get("solicitante"),
+        )
+        if any(names_match(person, name_keys) for person in people):
+            rows.append(item)
+        if len(rows) >= 8:
+            break
+    return rows
 
 
 def _pick(source: dict[str, Any], key: str) -> Any:
@@ -245,11 +324,6 @@ def _summarize_section(key: str, value: Any) -> Any:
         return {
             "note": value.get("note"),
             "deployment_frequency": value.get("deployment_frequency"),
-            "change_failure_rate": {
-                "failed_deployments": (value.get("change_failure_rate") or {}).get("failed_deployments"),
-                "deployments_evaluated": (value.get("change_failure_rate") or {}).get("deployments_evaluated"),
-                "rate_pct": (value.get("change_failure_rate") or {}).get("rate_pct"),
-            },
             "lead_time_deploy": value.get("lead_time_deploy"),
         }
     if key == "process_discipline" and isinstance(value, dict):
@@ -262,7 +336,12 @@ def _summarize_section(key: str, value: Any) -> Any:
                 "violations_sample": (flow.get("violations") or [])[:15],
             },
             "skipped_stages": (value.get("skipped_stages") or [])[:8],
+            "post_terminal_returns": value.get("post_terminal_returns"),
         }
+    if key == "priority" and isinstance(value, dict):
+        return _shrink_priority(value)
+    if key == "analysis_workflow" and isinstance(value, dict):
+        return _shrink_analysis_workflow(value)
     if key == "risk_board" and isinstance(value, dict):
         return {
             "high_or_critical_count": value.get("high_or_critical_count"),
@@ -378,7 +457,8 @@ def _truncate_if_needed(context: dict[str, Any]) -> dict[str, Any]:
     if len(text) <= MAX_CONTEXT_CHARS:
         return context
 
-    compact = {
+    antifraud = context.get("antifraud_insights") or context.get("antifraud")
+    compact: dict[str, Any] = {
         "truncated": True,
         "board": context.get("board"),
         "period": context.get("period"),
@@ -394,11 +474,153 @@ def _truncate_if_needed(context: dict[str, Any]) -> dict[str, Any]:
         "developers": (context.get("developers") or [])[:20],
         "testers": (context.get("testers") or [])[:20],
         "requesters": (context.get("requesters") or [])[:20],
+        "reviewers": (context.get("reviewers") or [])[:20],
         "bottlenecks": context.get("bottlenecks"),
-        "sla": context.get("sla"),
+        "sla": _shrink_sla(context.get("sla")),
         "dora": context.get("dora"),
-        "process_discipline": context.get("process_discipline"),
-        "returns_pauses_insights": context.get("returns_pauses_insights"),
+        "flow": context.get("flow"),
+        "priority": _shrink_priority(context.get("priority")),
+        "quality_gates": context.get("quality_gates"),
+        "process_discipline": _shrink_process_discipline(context.get("process_discipline")),
+        "analysis_workflow": _shrink_analysis_workflow(context.get("analysis_workflow")),
+        "risk_board": context.get("risk_board"),
+        "fibonacci_points": context.get("fibonacci_points"),
+        "projects": (context.get("projects") or [])[:15],
+        "antifraud_insights": antifraud,
+        "returns_pauses_insights": _shrink_returns_insights(context.get("returns_pauses_insights")),
         "flow_column_insights": context.get("flow_column_insights"),
     }
-    return compact
+
+    text = json.dumps(compact, ensure_ascii=False)
+    if len(text) <= MAX_CONTEXT_CHARS:
+        return compact
+
+    # Segundo corte: prioriza antifraude + colaboradores; reduz blocos pesados.
+    compact["flow_column_insights"] = _shrink_flow_column_insights(compact.get("flow_column_insights"))
+    compact["returns_pauses_insights"] = _shrink_returns_insights(
+        compact.get("returns_pauses_insights"),
+        limit=6,
+    )
+    compact["process_discipline"] = _shrink_process_discipline(
+        compact.get("process_discipline"),
+        violations_limit=5,
+    )
+    compact.pop("priority", None)
+    compact.pop("analysis_workflow", None)
+    compact.pop("risk_board", None)
+    compact.pop("trends_6m", None)
+
+    text = json.dumps(compact, ensure_ascii=False)
+    if len(text) <= MAX_CONTEXT_CHARS:
+        return compact
+
+    # Ultimo recurso: nucleo + antifraude + TODOS os colaboradores (lotes dependem disso).
+    return {
+        "truncated": True,
+        "hard_truncated": True,
+        "board": compact.get("board"),
+        "period": compact.get("period"),
+        "report_type": compact.get("report_type"),
+        "team_summary": compact.get("team_summary"),
+        "collaborators_total": compact.get("collaborators_total"),
+        "collaborators_names": compact.get("collaborators_names"),
+        "collaborators": compact.get("collaborators") or [],
+        "developers": (compact.get("developers") or [])[:20],
+        "testers": (compact.get("testers") or [])[:20],
+        "requesters": (compact.get("requesters") or [])[:20],
+        "reviewers": (compact.get("reviewers") or [])[:20],
+        "sla": compact.get("sla"),
+        "dora": compact.get("dora"),
+        "quality_gates": compact.get("quality_gates"),
+        "bottlenecks": compact.get("bottlenecks"),
+        "antifraud_insights": antifraud,
+        "returns_pauses_insights": _shrink_returns_insights(
+            compact.get("returns_pauses_insights"),
+            limit=8,
+        ),
+    }
+
+
+def _shrink_returns_insights(insights: Any, limit: int = 8) -> Any:
+    if not isinstance(insights, dict):
+        return insights
+    shrunk = dict(insights)
+    for key in ("highlight_cards", "questionable_returns", "cards_with_returns"):
+        if isinstance(shrunk.get(key), list):
+            shrunk[key] = shrunk[key][:limit]
+    for key in ("top_return_motives", "top_return_solutions", "top_motive_subtype_pairs"):
+        if isinstance(shrunk.get(key), list):
+            shrunk[key] = shrunk[key][:8]
+    return shrunk
+
+
+def _shrink_process_discipline(value: Any, violations_limit: int = 8) -> Any:
+    if not isinstance(value, dict):
+        return value
+    flow = value.get("flow_conformity") or {}
+    violations = flow.get("violations_sample") or flow.get("violations") or []
+    return {
+        "flow_conformity": {
+            "cards_evaluated": flow.get("cards_evaluated"),
+            "compliant_count": flow.get("compliant_count"),
+            "compliance_pct": flow.get("compliance_pct"),
+            "violations_sample": violations[:violations_limit],
+        },
+        "skipped_stages": (value.get("skipped_stages") or [])[:6],
+        "post_terminal_returns": value.get("post_terminal_returns"),
+    }
+
+
+def _shrink_priority(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+    return {
+        "urgent_critical_pct": value.get("urgent_critical_pct"),
+        "priority_inflation_alert": value.get("priority_inflation_alert"),
+        "queue_jumps_count": value.get("queue_jumps_count"),
+        "urgent_aging_count": value.get("urgent_aging_count"),
+        "distribution": (value.get("distribution") or [])[:6],
+        "lead_time_by_priority": (value.get("lead_time_by_priority") or [])[:6],
+        "queue_jumps": (value.get("queue_jumps") or [])[:5],
+        "urgent_aging": (value.get("urgent_aging") or [])[:5],
+    }
+
+
+def _shrink_sla(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+    return {
+        "team": value.get("team"),
+        "by_stage": (value.get("by_stage") or [])[:8],
+        "by_developer": (value.get("by_developer") or [])[:12],
+        "current_alerts": (value.get("current_alerts") or [])[:8],
+    }
+
+
+def _shrink_analysis_workflow(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+    return {
+        "summary": value.get("summary") or {
+            k: value.get(k)
+            for k in (
+                "cards_created",
+                "cards_delivered",
+                "cards_in_progress",
+                "avg_lead_time_human",
+            )
+            if k in value
+        },
+        "highlight_cards": (value.get("highlight_cards") or [])[:6],
+    }
+
+
+def _shrink_flow_column_insights(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+    shrunk = dict(value)
+    if isinstance(shrunk.get("worst_columns"), list):
+        shrunk["worst_columns"] = shrunk["worst_columns"][:4]
+    if isinstance(shrunk.get("columns"), list):
+        shrunk["columns"] = shrunk["columns"][:6]
+    return shrunk

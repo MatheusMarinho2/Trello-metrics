@@ -23,6 +23,19 @@ default:
     - pip install --quiet -r requirements.txt pytest
   script:
     - export PYTHONPATH="${CI_PROJECT_DIR}/backend:${CI_PROJECT_DIR}"
+    - |
+      python - <<'PY'
+      from pathlib import Path
+      src = Path("trello_metrics/resources/metric_definitions.json").read_bytes()
+      copies = [
+          Path("trello_metrics/reports/metric_definitions.json"),
+          Path("client/src/data/metric_definitions.json"),
+      ]
+      for path in copies:
+          if path.read_bytes() != src:
+              raise SystemExit(f"metric_definitions dessincronizado: {path}")
+      print("metric_definitions sync OK")
+      PY
     - pytest tests/ -q
 
 test:

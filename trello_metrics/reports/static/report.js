@@ -17,7 +17,7 @@ const REPORT_LAYOUTS = {
   general: {
     sections: [
       "overview", "ai-analysis", "flow", "risk", "priority", "dora", "discipline", "analysis-workflow", "antifraud", "fibonacci",
-      "collaborators", "developers", "reviewers", "testers", "requesters", "projects",
+      "collaborators", "developers", "reviewers", "formal_reviewers", "testers", "requesters", "projects",
       "sla", "bottlenecks", "trends", "quality", "dossier",
     ],
   },
@@ -273,7 +273,7 @@ const ROLE_DETAIL_METRICS = {
     ["Taxa de retrabalho", "rework_rate_pct", "pct"],
     ["Taxa de qualidade", "quality_rate_pct", "pct"],
     ["Aceitacao sem retorno", "acceptance_rate_pct", "pct"],
-    ["Retornos da revisao em par", "peer_review_returns"],
+    ["Sugestoes aceitas (par)", "suggestions_accepted"],
     ["Dupla revisao obrigatoria", "double_review_mandatory_total"],
     ["Violacoes dupla revisao", "double_review_mandatory_violations"],
     ["Tempo total", "time_human"],
@@ -285,8 +285,9 @@ const ROLE_DETAIL_METRICS = {
     ["Cards entregues", "cards_delivered"],
     ["Revisoes feitas", "reviews_done"],
     ["Aprovadas", "approved"],
-    ["Devolvidas", "sent_back"],
-    ["Escapes no teste", "escaped_to_test"],
+    ["Sugestoes aceitas", "suggestions_accepted"],
+    ["Taxa de sugestoes", "suggestion_rate_pct", "pct"],
+    ["Escapes (revisao/teste)", "escaped_to_test"],
     ["Taxa de aprovacao", "approval_rate_pct", "pct"],
     ["Tempo total", "time_human"],
     ["Tempo medio", "avg_time_human"],
@@ -310,6 +311,8 @@ const ROLE_DETAIL_METRICS = {
     ["Cards testados", "cards_tested"],
     ["Aprovados 1a passagem", "approved_first_pass"],
     ["Problemas evitados", "prevented_problems"],
+    ["Retornos indevidos", "undue_test_returns"],
+    ["Taxa indevidos (%)", "undue_return_rate_pct", "pct"],
     ["Sem motivo", "returns_missing_reason"],
     ["Retestes", "retest_cycles_total"],
     ["Tempo total", "time_human"],
@@ -573,7 +576,39 @@ function renderFlow() {
         agingStatusPill(row.status),
         escapeHtml(row.prioridade || "-"),
       ]),
-    )}</div>`;
+    )}</div>
+    ${(() => {
+      const baseline = flow.aging_baseline || [];
+      const rework = team.rework_ratio || {};
+      const blocked = team.blocked_time || {};
+      const net = flow.net_flow || {};
+      const ftr = METRICS.first_time_right || {};
+      const peer = ftr.peer_review || {};
+      const testing = ftr.testing || {};
+      const member = METRICS.member_assignment || {};
+      const due = METRICS.due_predictability || {};
+      const moves = METRICS.board_moves || {};
+      return `
+        <div class="panel">${table(
+          ["Etapa", "P50", "P85", "P95", "Amostras"],
+          baseline.map((row) => [
+            escapeHtml(row.title || "-"),
+            escapeHtml(row.p50_human || "-"),
+            escapeHtml(row.p85_human || "-"),
+            escapeHtml(row.p95_human || "-"),
+            row.samples ?? 0,
+          ]),
+        )}</div>
+        <div class="kpi-grid">
+          ${kpi("Rework ratio", pct(rework.team_rework_ratio_pct), "Horas em retorno_dev / fluxo", "warning")}
+          ${kpi("Blocked P85", statDuration(blocked, "p85_hours", "p85_human"), "Pausa + retorno suporte", "warning")}
+          ${kpi("Net flow 4sem", net.avg_net_last_4_weeks ?? "-", net.alert_wip_rising ? "WIP subindo" : "Estavel", net.alert_wip_rising ? "danger" : "success")}
+          ${kpi("FTR teste", pct(testing.pct), `Peer ${pct(peer.pct)}`, "success")}
+          ${kpi("Due on-time", pct(due.compliance_pct), `Replan ${pct(due.replan_rate_pct)}`, "primary")}
+          ${kpi("Inconsist. membros", pct(member.inconsistent_pct), "Campo vs idMembers", "warning")}
+          ${kpi("Board in/out", `${moves.cards_in ?? 0}/${moves.cards_out ?? 0}`, "Movimentacao entre boards", "purple")}
+        </div>`;
+    })()}`;
 
   if (cfd.length) {
     const stageNames = [...new Set(cfd.flatMap((row) => Object.keys(row).filter((key) => key !== "date")))];
@@ -691,7 +726,6 @@ function renderPriority() {
 function renderDora() {
   const dora = METRICS.dora || {};
   const frequency = dora.deployment_frequency || {};
-  const failure = dora.change_failure_rate || {};
   const byPath = frequency.by_path || {};
   const container = document.getElementById("dora-content");
   if (!container) return;
@@ -699,17 +733,16 @@ function renderDora() {
   container.innerHTML = `
     ${tableIntro("dora")}
     ${renderSectionGuide("dora")}
-    ${dora.cfr_note ? `<p class="table-description dora-disclaimer">${escapeHtml(dora.cfr_note)}</p>` : ""}
     ${dora.note ? `<p class="table-description">${escapeHtml(dora.note)}</p>` : ""}
     <div class="kpi-grid">
       ${kpi("Deploys", frequency.total ?? 0, "Em producao + direto", "primary")}
       ${kpi("Fluxo normal", byPath.standard_production ?? 0, "Em producao", "success")}
       ${kpi("Direto prod.", byPath.direct_production ?? 0, "Sem homolog/teste", "warning")}
-      ${kpi("Change failure", pct(failure.rate_pct), `${failure.failed_deployments ?? 0} de ${failure.deployments_evaluated ?? 0}`, "danger")}
+      ${kpi("LT deploy P85", statDuration(dora.lead_time_deploy, "p85_hours", "p85_human"), "Aguardando producao ate deploy", "purple")}
     </div>
     <div class="kpi-grid">
-      ${kpi("LT deploy P85", statDuration(dora.lead_time_deploy, "p85_hours", "p85_human"), "Aguardando producao ate deploy", "purple")}
-      ${kpi("Time to restore P85", statDuration(dora.time_to_restore, "p85_hours", "p85_human"), "Correcoes urgentes/criticas", "danger")}
+      ${kpi("LT deploy mediana", statDuration(dora.lead_time_deploy, "median_hours", "median_human"), "Lead time de mudanca", "primary")}
+      ${kpi("LT deploy P95", statDuration(dora.lead_time_deploy, "p95_hours", "p95_human"), "Cauda longa", "danger")}
     </div>
     <div class="two-col">
       <div class="panel">${table(
@@ -720,18 +753,7 @@ function renderDora() {
         ["Sistema", "Deploys"],
         (frequency.by_system || []).map((row) => [escapeHtml(row.sistema || "-"), row.count ?? 0]),
       )}</div>
-    </div>
-    <div class="panel">${table(
-      ["Deploy", "ID deploy", "Sistema", "Correcao", "ID correcao", "Criada em"],
-      (failure.failures || []).map((row) => [
-        escapeHtml(row.deployment_card_name || "-"),
-        `<code class="ai-code">${escapeHtml(row.deployment_card_id || "-")}</code>`,
-        escapeHtml(row.sistema || "-"),
-        escapeHtml(row.correction_card_name || "-"),
-        `<code class="ai-code">${escapeHtml(row.correction_card_id || "-")}</code>`,
-        escapeHtml(formatShortDate(row.correction_created_at)),
-      ]),
-    )}</div>`;
+    </div>`;
 }
 
 function renderProcessDiscipline() {
@@ -1001,6 +1023,7 @@ function roleMetricCards(role) {
   }
   if (role.role_key === "tester") {
     cards.push(kpi("Problemas evitados", role.prevented_problems ?? role.returned_dev_for_quality ?? 0, `${role.returns_missing_reason ?? 0} sem motivo`, "success"));
+    cards.push(kpi("Retornos indevidos", role.undue_test_returns ?? 0, pct(role.undue_return_rate_pct), "danger"));
   }
   if (role.role_key === "solicitante") {
     cards.push(kpi("Planejamento ok", pct(role.planning_ok_rate_pct), `${role.requester_delivered ?? 0} entregues`, "success"));
@@ -1242,15 +1265,38 @@ function renderDevelopers() {
 
 function renderReviewers() {
   const rows = METRICS.reviewers || [];
-  document.getElementById("reviewers-content").innerHTML = `
+  const el = document.getElementById("reviewers-content");
+  if (!el) return;
+  el.innerHTML = `
     ${tableIntro("reviewers")}
     <div class="panel">${table(
-      ["Nome", "Revisoes", "Aprovados", "Devolvidos", "Escapes teste", "Taxa", "Tempo medio"],
+      ["Nome", "Revisoes", "Sugestoes aceitas", "% sugestoes", "Sem escape", "Escapes", "Taxa", "Tempo medio"],
       rows.map((r) => [
         escapeHtml(r.name),
         r.reviews_done,
+        r.suggestions_accepted ?? r.sent_back ?? 0,
+        ratePill(r.suggestion_rate_pct ?? 0, false),
         r.approved,
-        r.sent_back,
+        r.escaped_to_test ?? 0,
+        ratePill(r.approval_rate_pct, false),
+        escapeHtml(r.avg_review_human || "-"),
+      ]),
+    )}</div>`;
+}
+
+function renderFormalReviewers() {
+  const rows = METRICS.formal_reviewers || [];
+  const el = document.getElementById("formal-reviewers-content");
+  if (!el) return;
+  el.innerHTML = `
+    ${tableIntro("formal_reviewers")}
+    <div class="panel">${table(
+      ["Nome", "Revisoes", "Aprovadas", "Retornos", "Escapes teste", "Taxa", "Tempo medio"],
+      rows.map((r) => [
+        escapeHtml(r.name),
+        r.formal_reviews_done,
+        r.formal_review_passed,
+        r.review_return_events ?? 0,
         r.escaped_to_test ?? 0,
         ratePill(r.approval_rate_pct, false),
         escapeHtml(r.avg_review_human || "-"),
@@ -1266,12 +1312,13 @@ function renderTesters() {
     ${tableIntro("testers")}
     <div class="charts-grid">${chartCard("chart-testers", "Performance de testes")}</div>
     <div class="panel">${table(
-      ["Nome", "Testados", "1a passagem", "Problemas evitados", "Sem motivo", "Retestes"],
+      ["Nome", "Testados", "1a passagem", "Problemas evitados", "Indevidos", "Sem motivo", "Retestes"],
       rows.map((t) => [
         escapeHtml(t.name),
         t.cards_tested ?? t.tests_started ?? 0,
         t.approved_first_pass ?? 0,
         t.prevented_problems ?? t.returned_dev_for_quality ?? t.returned_dev ?? 0,
+        t.undue_test_returns ?? 0,
         t.returns_missing_reason ?? 0,
         t.retest_cycles_total ?? 0,
       ]),
@@ -1285,6 +1332,7 @@ function renderTesters() {
         datasets: [
           { label: "1a passagem", data: rows.map((t) => t.approved_first_pass ?? 0), backgroundColor: COLORS.green, borderRadius: 4 },
           { label: "Problemas evitados", data: rows.map((t) => t.prevented_problems ?? t.returned_dev_for_quality ?? 0), backgroundColor: COLORS.orange, borderRadius: 4 },
+          { label: "Retornos indevidos", data: rows.map((t) => t.undue_test_returns ?? 0), backgroundColor: COLORS.red, borderRadius: 4 },
         ],
       },
       options: {
@@ -1875,13 +1923,24 @@ function renderCardBlock(card, options = {}) {
     .map((r) => {
       const tipo = r.tipo === "dev" ? "DEV" : "SUP";
       const sub = r.subtipo ? ` (${r.subtipo})` : "";
+      const undue = r.is_undue_test_return || r.kind === "undue";
+      const solucaoLabel = undue ? "Solução de retorno indevido" : "Solucao";
       return `
-        <div class="retorno-item">
-          <strong>Retorno ${r.numero} (${tipo})${escapeHtml(sub)}</strong>
+        <div class="retorno-item${undue ? " undue" : ""}">
+          <strong>Retorno ${r.numero} (${tipo})${escapeHtml(sub)}${undue ? " · Indevido" : ""}</strong>
           <div>${escapeHtml(r.motivo || "Sem motivo registrado")}</div>
-          <div class="attr">Solucao: ${escapeHtml(r.solucao || "-")} · Atribuido: ${escapeHtml(r.atribuido_a || "-")}</div>
+          <div class="attr">${solucaoLabel}: ${escapeHtml(r.solucao || "-")} · Atribuido: ${escapeHtml(r.atribuido_a || "-")}</div>
         </div>`;
     })
+    .join("");
+
+  const undueSolutions = (card.undue_return_solutions || [])
+    .map((item) => `
+        <div class="retorno-item undue">
+          <strong>Solução de retorno indevido${item.numero != null ? ` #${item.numero}` : ""}</strong>
+          <div>${escapeHtml(item.motivo || "Sem motivo registrado")}</div>
+          <div class="attr">${escapeHtml(item.solucao || "-")}</div>
+        </div>`)
     .join("");
 
   const pausas = (card.pausas || [])
@@ -1918,6 +1977,7 @@ function renderCardBlock(card, options = {}) {
         ${collaboratorView ? renderCollaboratorInvolvements(card) : ""}
         ${renderDescricao(card.descricao)}
         ${renderStageTimeline(timelineStages, { title: timelineTitle })}
+        ${undueSolutions ? '<div class="obs-section"><div class="obs-section-title">Soluções de retorno indevido</div>' + undueSolutions + "</div>" : ""}
         ${retornos || pausas ? '<div class="obs-section"><div class="obs-section-title">Retornos e pausas</div>' : ""}
         ${retornos}${pausas}
         ${retornos || pausas ? "</div>" : ""}
@@ -2292,6 +2352,7 @@ function init() {
   renderCollaborators();
   renderDevelopers();
   renderReviewers();
+  renderFormalReviewers();
   renderTesters();
   renderRequesters();
   renderProjects();

@@ -8,9 +8,10 @@ from typing import Any
 from trello_metrics.domain.models import TrelloCard
 from trello_metrics.domain.workflow import WorkflowConfig
 from trello_metrics.metrics.aggregators.collaborators import ROLE_CONFIGS
+from trello_metrics.metrics.aggregators.common import calendar_person_for_timeline
 from trello_metrics.metrics.timeline import CardTimeline, StageTimelineEntry
-from trello_metrics.utils.business_hours import business_hours_between
-from trello_metrics.utils.dates import hours_between, human_hours, isoformat
+from trello_metrics.utils.business_hours import duration_hours
+from trello_metrics.utils.dates import human_hours, isoformat
 from trello_metrics.utils.period import MonthPeriod
 from trello_metrics.utils.text import normalize_key
 
@@ -82,7 +83,8 @@ def aggregate_sla(
             "risk_threshold_pct": float(rules.get("risk_threshold_pct", 80)),
             "note": (
                 "Horas uteis usam expediente INTGEST (seg-qua 8h-18h, qui-sex 8h-17h30, "
-                "almoco 12h-13h); Aguardando producao usa dias corridos; "
+                "almoco 12h-13h) + calendario operacional (feriados, meio periodo, exclusoes) "
+                "e hora extra do responsavel da etapa; Aguardando producao usa dias corridos; "
                 "Em andamento usa nivel Fibonacci (cards problema); "
                 "Analises para planejamento usa nivel de analise; "
                 "Retornos usam prioridade do card."
@@ -124,7 +126,11 @@ def _stage_check(
 
     mode = _sla_mode(stage.group, rules)
     end_at = stage.end_at or now
-    elapsed = _elapsed_hours(stage.start_at, end_at, mode, rules, timezone_name)
+    responsavel, responsavel_role = _responsible_for_group(timeline, stage.group)
+    person = responsavel if responsavel not in {"Nao informado", "Pipeline"} else None
+    if not person:
+        person = calendar_person_for_timeline(timeline, stage.group)
+    elapsed = _elapsed_hours(stage.start_at, end_at, mode, workflow, person=person)
     usage_pct = round(100 * elapsed / limit, 1) if limit else 0.0
     breached = elapsed > limit
     risk_threshold = float(rules.get("risk_threshold_pct", 80))
@@ -134,8 +140,6 @@ def _stage_check(
         status = "estourado"
     elif is_open_stage and usage_pct >= risk_threshold:
         status = "em_risco"
-
-    responsavel, responsavel_role = _responsible_for_group(timeline, stage.group)
 
     return {
         "card_id": timeline.card_id,
@@ -297,14 +301,15 @@ def _elapsed_hours(
     start: datetime | None,
     end: datetime | None,
     mode: str,
-    rules: dict[str, Any],
-    timezone_name: str,
+    workflow: WorkflowConfig,
+    *,
+    person: str | None = None,
 ) -> float:
     if not start or not end:
         return 0.0
     if mode == "calendar":
-        return hours_between(start, end)
-    return business_hours_between(start, end, rules, timezone_name)
+        return duration_hours(start, end, workflow, calendar=True)
+    return duration_hours(start, end, workflow, person=person)
 
 
 def _by_stage(

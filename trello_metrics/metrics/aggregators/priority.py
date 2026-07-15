@@ -5,6 +5,7 @@ from typing import Any
 
 from trello_metrics.domain.workflow import WorkflowConfig
 from trello_metrics.metrics.aggregators.common import (
+    calendar_person_for_timeline,
     is_high_priority,
     priority_rank,
     ratio,
@@ -31,7 +32,12 @@ def aggregate_priority_metrics(
         priority = timeline.prioridade or "Nao informado"
         if timeline.created_at and timeline.delivered_at:
             lead_by_priority.setdefault(priority, []).append(
-                duration_hours(timeline.created_at, timeline.delivered_at, workflow)
+                duration_hours(
+                    timeline.created_at,
+                    timeline.delivered_at,
+                    workflow,
+                    person=calendar_person_for_timeline(timeline),
+                )
             )
 
     queue_jumps = _queue_jumps(delivered)

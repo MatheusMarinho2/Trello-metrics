@@ -4,6 +4,8 @@ export type ReportType =
   | "developers"
   | "requesters"
   | "testers"
+  | "reviewers"
+  | "formal_reviewers"
   | "management"
   | "specific_metrics";
 

@@ -4,6 +4,7 @@ export type PreviewSection =
   | "collaborators"
   | "developers"
   | "reviewers"
+  | "formal_reviewers"
   | "testers"
   | "requesters"
   | "projects"
@@ -40,6 +41,7 @@ export const REPORT_PREVIEW_SECTIONS: Record<ReportType, PreviewSection[]> = {
     "collaborators",
     "developers",
     "reviewers",
+    "formal_reviewers",
     "testers",
     "requesters",
     "projects",
@@ -52,6 +54,8 @@ export const REPORT_PREVIEW_SECTIONS: Record<ReportType, PreviewSection[]> = {
   developers: ["role_metrics", "developers", "flow", "fibonacci", "sla_dev", "quality_gates"],
   requesters: ["role_metrics", "requesters", "projects"],
   testers: ["role_metrics", "testers", "quality_gates"],
+  reviewers: ["role_metrics", "reviewers", "quality_gates"],
+  formal_reviewers: ["role_metrics", "formal_reviewers", "quality_gates"],
   management: [
     "team_summary",
     "flow",
@@ -68,7 +72,7 @@ export const REPORT_PREVIEW_SECTIONS: Record<ReportType, PreviewSection[]> = {
     "trends",
     "risk",
   ],
-  specific_metrics: ["team_summary", "sla_dev", "sla_cards", "bottlenecks", "flow", "priority", "dora", "antifraud"],
+  specific_metrics: ["team_summary", "sla_dev", "sla_cards", "bottlenecks", "flow", "priority", "antifraud"],
 };
 
 export const METRIC_KEY_SECTIONS: Record<string, PreviewSection[]> = {
@@ -77,6 +81,8 @@ export const METRIC_KEY_SECTIONS: Record<string, PreviewSection[]> = {
   developers: ["role_metrics", "developers", "fibonacci", "flow", "quality_gates", "sla_dev"],
   testers: ["role_metrics", "testers", "quality_gates"],
   requesters: ["role_metrics", "requesters", "projects"],
+  reviewers: ["role_metrics", "reviewers", "quality_gates"],
+  formal_reviewers: ["role_metrics", "formal_reviewers", "quality_gates"],
   sla: ["sla_dev", "sla_cards", "alerts"],
   bottlenecks: ["bottlenecks"],
   card_dossier: [],
@@ -110,6 +116,9 @@ export const TAB_DESCRIPTIONS: Record<ReportType, string> = {
   developers: "Entregas, pontos Fibonacci, tempo de atuacao e qualidade por desenvolvedor.",
   requesters: "Demanda criada, planejamento e entregas por solicitante.",
   testers: "Testes, primeira passagem, problemas evitados e retestes.",
-  management: "Indicadores para gestao: fluxo, SLA, risco, DORA, analises e tendencias.",
+  reviewers:
+    "Revisao em par: sugestoes aceitas (garantia de qualidade) e escapes em revisao formal/teste.",
+  formal_reviewers: "Revisao formal: aprovacoes, retornos ao DEV e escapes detectados no teste.",
+  management: "Indicadores para gestao: fluxo, SLA, risco, analises e tendencias.",
   specific_metrics: "Somente as metricas selecionadas abaixo.",
 };

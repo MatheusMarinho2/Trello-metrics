@@ -83,6 +83,7 @@ class PdfReportBuilder:
             self._collaborators(),
             self._developers(),
             self._reviewers(),
+            self._formal_reviewers(),
             self._testers(),
             self._requesters(),
             self._projects(),
@@ -409,6 +410,54 @@ class PdfReportBuilder:
                       _aging_status_label(r.get("status"))] for r in aging[:15]],
                     align=["left", "left", "right", "right", "right", "center"],
                 )
+            baseline = flow.get("aging_baseline") or []
+            if baseline:
+                html += subttl("Baseline de aging por etapa (12m)") + table(
+                    ["Etapa", "P50", "P85", "P95", "Amostras"],
+                    [[r.get("title", "-"), r.get("p50_human", "-"), r.get("p85_human", "-"),
+                      r.get("p95_human", "-"), r.get("samples", 0)] for r in baseline[:12]],
+                    align=["left", "right", "right", "right", "right"],
+                )
+            rework = team.get("rework_ratio") or {}
+            blocked = team.get("blocked_time") or {}
+            net = flow.get("net_flow") or {}
+            html += subttl("Retrabalho, bloqueio e net flow") + table(
+                ["Indicador", "Valor"],
+                [
+                    ["Rework ratio (time)", f"{rework.get('team_rework_ratio_pct', '-')}%"],
+                    ["Blocked time P85", _stats_triplet(blocked)],
+                    ["Net flow media 4 sem", net.get("avg_net_last_4_weeks", "-")],
+                    ["Alerta WIP subindo", "Sim" if net.get("alert_wip_rising") else "Nao"],
+                ],
+                align=["left", "right"],
+            )
+            ftr = self.metrics.get("first_time_right") or {}
+            if ftr and self.include("quality_gates"):
+                peer = ftr.get("peer_review") or {}
+                testing = ftr.get("testing") or {}
+                html += subttl("First-Time-Right") + table(
+                    ["Gate", "FTR %", "Ok", "Total"],
+                    [
+                        ["Revisao em par", peer.get("pct", "-"), peer.get("ok", 0), peer.get("total", 0)],
+                        ["Teste", testing.get("pct", "-"), testing.get("ok", 0), testing.get("total", 0)],
+                    ],
+                    align=["left", "right", "right", "right"],
+                )
+            member = self.metrics.get("member_assignment") or {}
+            due = self.metrics.get("due_predictability") or {}
+            moves = self.metrics.get("board_moves") or {}
+            if member or due or moves:
+                html += subttl("Atribuicao, due e board moves") + table(
+                    ["Indicador", "Valor"],
+                    [
+                        ["Latencia atribuicao (mediana)", _stats_triplet(member.get("assign_latency"))],
+                        ["Inconsistencia membro vs campo", f"{member.get('inconsistent_pct', '-')}%"],
+                        ["Due on-time", f"{due.get('compliance_pct', '-')}%"],
+                        ["Replan due", f"{due.get('replan_rate_pct', '-')}%"],
+                        ["Cards in/out board", f"{moves.get('cards_in', 0)} / {moves.get('cards_out', 0)}"],
+                    ],
+                    align=["left", "right"],
+                )
             cfd = _cfd_rows(flow.get("cfd") or [])
             if cfd:
                 html += subttl("CFD - ultimos snapshots") + table(
@@ -416,7 +465,7 @@ class PdfReportBuilder:
                     align=["left", "right", "left"],
                 )
         risk = self.metrics.get("risk_board") or {}
-        if risk and self.include("risk_board"):
+        if risk and self.include("risk"):
             attention = risk.get("cards_that_need_attention") or []
             html += subttl("Cards que merecem atencao agora")
             html += muted(f"Cards em risco alto/critico: {risk.get('high_or_critical_count', 0)}")
@@ -485,15 +534,14 @@ class PdfReportBuilder:
         dora = self.metrics.get("dora") or {}
         if dora and self.include("dora"):
             deploy = dora.get("deployment_frequency") or {}
-            failure = dora.get("change_failure_rate") or {}
-            html += subttl("DORA adaptado") + table(
+            by_path = deploy.get("by_path") or {}
+            html += subttl("DORA parcial (frequencia + lead time)") + table(
                 ["Indicador", "Valor"],
                 [
                     ["Frequencia de deploy", deploy.get("total", 0)],
+                    ["Fluxo normal (Em producao)", by_path.get("standard_production", 0)],
+                    ["Direto producao", by_path.get("direct_production", 0)],
                     ["Lead time de deploy med/P85/P95", _stats_triplet(dora.get("lead_time_deploy"))],
-                    ["Change failure rate", f"{failure.get('rate_pct', 0)}%"],
-                    ["Deploys com falha", failure.get("failed_deployments", 0)],
-                    ["Time to restore med/P85/P95", _stats_triplet(dora.get("time_to_restore"))],
                 ],
                 align=["left", "right"],
             )
@@ -508,14 +556,6 @@ class PdfReportBuilder:
                 html += subttl("Deploys por sistema") + table(
                     ["Sistema", "Deploys"], [[esc(r.get("sistema", "-")), r.get("count", 0)] for r in by_sys[:12]],
                     align=["left", "right"],
-                )
-            fails = failure.get("failures") or []
-            if fails:
-                html += subttl("Change failures detectados") + table(
-                    ["Deploy", "Sistema", "Correcao subsequente", "Criada em"],
-                    [[r.get("deployment_card_name", "-"), r.get("sistema", "-"),
-                      r.get("correction_card_name", "-"), r.get("correction_created_at", "-")] for r in fails[:12]],
-                    align=["left", "left", "left", "left"],
                 )
         discipline = self.metrics.get("process_discipline") or {}
         if discipline and self.include("discipline"):
@@ -685,7 +725,7 @@ class PdfReportBuilder:
             f'{self._head("Desenvolvedores")}{self._table_intro("developers")}'
             f'{chart_img(self.charts.get("dev_points"))}{chart_img(self.charts.get("dev_flow"))}'
             f'{chart_img(self.charts.get("dev_quality"))}'
-            f'{table(["Nome", "Cards", "Normais", "Analise", "Pts normais", "Pts analise", "Tempo dev", "Aceitacao", "Retrabalho", "Pegos no teste", "Ret. par"], [[r["name"], r["cards_delivered"], r.get("cards_delivered_normal", 0), r.get("cards_delivered_analysis", 0), r["fibonacci_normal"], r["fibonacci_analysis"], r["avg_dev_human"], f"{r['acceptance_rate_pct']}%", f"{r.get('rework_rate_pct', 0)}%", r.get("tester_quality_returns", 0), r["peer_review_returns"]] for r in devs], align=["left", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right"])}'
+            f'{table(["Nome", "Cards", "Normais", "Analise", "Pts normais", "Pts analise", "Tempo dev", "Aceitacao", "Retrabalho", "Pegos no teste", "Sugestoes par"], [[r["name"], r["cards_delivered"], r.get("cards_delivered_normal", 0), r.get("cards_delivered_analysis", 0), r["fibonacci_normal"], r["fibonacci_analysis"], r["avg_dev_human"], f"{r['acceptance_rate_pct']}%", f"{r.get('rework_rate_pct', 0)}%", r.get("tester_quality_returns", 0), r.get("suggestions_accepted", r.get("peer_review_returns", 0))] for r in devs], align=["left", "right", "right", "right", "right", "right", "right", "right", "right", "right", "right"])}'
         )
         profiles = self.metrics.get("developer_profiles") or []
         if profiles:
@@ -713,9 +753,42 @@ class PdfReportBuilder:
         rows = self.metrics.get("reviewers")
         if not self.include("reviewers") or not rows:
             return ""
+        body = [
+            [
+                r["name"],
+                r["reviews_done"],
+                r.get("suggestions_accepted", r.get("sent_back", 0)),
+                f"{r.get('suggestion_rate_pct', 0)}%",
+                r["approved"],
+                r.get("escaped_to_test", 0),
+                f"{r['approval_rate_pct']}%",
+            ]
+            for r in rows
+        ]
         return (
-            f'{self._head("Revisores em par")}{self._table_intro("reviewers")}'
-            f'{table(["Nome", "Revisoes", "Aprovadas", "Devolvidas", "Escapes teste", "Taxa aprovacao"], [[r["name"], r["reviews_done"], r["approved"], r["sent_back"], r.get("escaped_to_test", 0), f"{r['approval_rate_pct']}%"] for r in rows], align=["left", "right", "right", "right", "right", "right"])}'
+            f'{self._head("Revisao em par")}{self._table_intro("reviewers")}'
+            f'{table(["Nome", "Revisoes", "Sugestoes aceitas", "% sugestoes", "Sem escape", "Escapes", "Taxa"], body, align=["left", "right", "right", "right", "right", "right", "right"])}'
+            "</section>"
+        )
+
+    def _formal_reviewers(self) -> str:
+        rows = self.metrics.get("formal_reviewers")
+        if not self.include("formal_reviewers") or not rows:
+            return ""
+        body = [
+            [
+                r["name"],
+                r["formal_reviews_done"],
+                r["formal_review_passed"],
+                r.get("review_return_events", 0),
+                r.get("escaped_to_test", 0),
+                f"{r['approval_rate_pct']}%",
+            ]
+            for r in rows
+        ]
+        return (
+            f'{self._head("Revisores")}{self._table_intro("formal_reviewers")}'
+            f'{table(["Nome", "Revisoes", "Aprovadas", "Retornos", "Escapes teste", "Taxa"], body, align=["left", "right", "right", "right", "right", "right"])}'
             "</section>"
         )
 
@@ -726,7 +799,7 @@ class PdfReportBuilder:
         return (
             f'{self._head("Testers / Suporte")}{self._table_intro("testers")}'
             f'{chart_img(self.charts.get("testers"))}'
-            f'{table(["Nome", "Testes", "1a passagem", "Problemas evitados", "Sem motivo", "Retestes"], [[r["name"], r["cards_tested"], r["approved_first_pass"], r.get("prevented_problems", r.get("returned_dev_for_quality", 0)), r.get("returns_missing_reason", 0), r["retest_cycles_total"]] for r in rows], align=["left", "right", "right", "right", "right", "right"])}'
+            f'{table(["Nome", "Testes", "1a passagem", "Problemas evitados", "Indevidos", "Sem motivo", "Retestes"], [[r["name"], r["cards_tested"], r["approved_first_pass"], r.get("prevented_problems", r.get("returned_dev_for_quality", 0)), r.get("undue_test_returns", 0), r.get("returns_missing_reason", 0), r["retest_cycles_total"]] for r in rows], align=["left", "right", "right", "right", "right", "right", "right"])}'
             "</section>"
         )
 

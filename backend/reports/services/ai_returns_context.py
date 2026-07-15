@@ -228,12 +228,46 @@ def highlights_for_people(
     insights: dict[str, Any],
     names: list[str],
 ) -> list[dict[str, Any]]:
-    name_set = set(names)
+    name_keys = batch_name_keys(names)
     return [
         card
         for card in insights.get("highlight_cards") or []
-        if any(person in name_set for person in (card.get("people") or []))
+        if any(names_match(person, name_keys) for person in (card.get("people") or []))
     ]
+
+
+def batch_name_keys(names: list[str]) -> set[str]:
+    keys: set[str] = set()
+    for name in names:
+        keys.update(person_match_keys(name))
+    return keys
+
+
+def person_match_keys(name: str) -> set[str]:
+    from trello_metrics.metrics.aggregators.collaborators import collaborator_identity
+    from trello_metrics.utils.text import normalize_key
+
+    keys = {str(name or "").strip().casefold()}
+    identity = collaborator_identity(str(name or ""))
+    if identity:
+        keys.add(identity[0].casefold())
+        keys.add(normalize_key(identity[0]))
+    raw = str(name or "").strip()
+    for prefix in ("RP-", "R-", "D-", "T-", "S-"):
+        if raw.upper().startswith(prefix):
+            bare = raw[len(prefix) :].strip()
+            keys.add(bare.casefold())
+            keys.add(normalize_key(bare))
+            break
+    else:
+        keys.add(normalize_key(raw))
+    return {key for key in keys if key}
+
+
+def names_match(left: str | None, right_keys: set[str]) -> bool:
+    if not left:
+        return False
+    return bool(person_match_keys(left) & right_keys)
 
 
 def _unique_dossier_cards(dossier: dict[str, Any]) -> list[dict[str, Any]]:

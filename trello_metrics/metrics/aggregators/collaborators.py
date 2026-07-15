@@ -248,6 +248,8 @@ def aggregate_collaborators(
             identity = collaborator_identity(raw_name)
             if identity is None:
                 continue
+            if workflow.should_ignore_person(raw_name):
+                continue
 
             key, display_name = identity
             if key not in collaborators:
@@ -382,7 +384,7 @@ def _add_role_specific_metrics(
     extra = role_acc.extra
     if role_key == "desenvolvedor":
         extra["return_dev_count"] += timeline.developer_penalty_return_count
-        extra["tester_quality_returns"] += timeline.return_dev_by_teste_count
+        extra["tester_quality_returns"] += timeline.return_dev_by_teste_legitimate_count
         extra["peer_review_returns"] += timeline.peer_review_returns
         if timeline.developer_penalty_return_count > 0:
             extra["cards_with_rework"] += 1
@@ -395,9 +397,13 @@ def _add_role_specific_metrics(
 
     elif role_key == "revisor_par":
         extra["reviews_done"] += 1
+        # peer_review → development = sugestões (benefício), não penaliza
         if timeline.peer_review_sent_back:
             extra["sent_back"] += 1
-        elif timeline.return_dev_by_teste_count > 0:
+        if (
+            timeline.return_dev_by_revisao_count > 0
+            or timeline.return_dev_by_teste_legitimate_count > 0
+        ):
             extra["escaped_to_test"] += 1
         else:
             extra["approved"] += 1
@@ -405,7 +411,7 @@ def _add_role_specific_metrics(
     elif role_key == "revisor":
         extra["formal_reviews_done"] += 1
         extra["review_return_events"] += timeline.return_dev_by_revisao_count
-        if timeline.return_dev_by_teste_count > 0:
+        if timeline.return_dev_by_teste_legitimate_count > 0:
             extra["escaped_to_test"] += 1
         elif timeline.passed_formal_review:
             extra["formal_review_passed"] += 1
@@ -413,8 +419,9 @@ def _add_role_specific_metrics(
     elif role_key == "tester" and timeline.kind == "problem" and timeline.passed_test_phase:
         extra["cards_tested"] += 1
         extra["approved_first_pass"] += 1 if not timeline.tester_returned_dev else 0
-        extra["prevented_problems"] += timeline.return_dev_by_teste_count
-        extra["returned_dev_for_quality"] += timeline.return_dev_by_teste_count
+        extra["prevented_problems"] += timeline.return_dev_by_teste_legitimate_count
+        extra["returned_dev_for_quality"] += timeline.return_dev_by_teste_legitimate_count
+        extra["undue_test_returns"] += timeline.tester_undue_returns
         extra["returns_missing_reason"] += timeline.test_return_missing_reason_count
         extra["retest_cycles_total"] += timeline.retest_cycles
         if timeline.tester_returned_dev:
@@ -443,6 +450,7 @@ def _extra_to_dict(
             "return_dev_count": int(extra.get("return_dev_count", 0)),
             "tester_quality_returns": int(extra.get("tester_quality_returns", 0)),
             "peer_review_returns": int(extra.get("peer_review_returns", 0)),
+            "suggestions_accepted": int(extra.get("peer_review_returns", 0)),
             "cards_with_rework": cards_with_rework,
             "rework_rate_pct": rework_rate,
             "quality_rate_pct": round(100 - rework_rate, 1) if delivered else 0.0,
@@ -456,6 +464,8 @@ def _extra_to_dict(
         approved = int(extra.get("approved", 0))
         return {
             "reviews_done": reviews,
+            "suggestions_accepted": int(extra.get("sent_back", 0)),
+            "suggestion_rate_pct": round(100 * int(extra.get("sent_back", 0)) / reviews, 1) if reviews else 0.0,
             "approved": approved,
             "sent_back": int(extra.get("sent_back", 0)),
             "escaped_to_test": int(extra.get("escaped_to_test", 0)),
@@ -477,11 +487,14 @@ def _extra_to_dict(
         tested = int(extra.get("cards_tested", 0))
         first_pass = int(extra.get("approved_first_pass", 0))
         returned_cards = int(extra.get("cards_with_tester_return", 0))
+        undue = int(extra.get("undue_test_returns", 0))
         return {
             "cards_tested": tested,
             "approved_first_pass": first_pass,
             "prevented_problems": int(extra.get("prevented_problems", 0)),
             "returned_dev_for_quality": int(extra.get("returned_dev_for_quality", 0)),
+            "undue_test_returns": undue,
+            "undue_return_rate_pct": round(100 * undue / tested, 1) if tested else 0.0,
             "returns_missing_reason": int(extra.get("returns_missing_reason", 0)),
             "retest_cycles_total": int(extra.get("retest_cycles_total", 0)),
             "tester_return_rate_pct": round(100 * returned_cards / tested, 1) if tested else 0.0,

@@ -1,6 +1,7 @@
 import {
   BarChart3,
   BrainCircuit,
+  CalendarDays,
   ChevronDown,
   ClipboardList,
   Database,
@@ -42,6 +43,7 @@ import {
 } from "./api/client";
 import { LoadingOverlay } from "./components/LoadingOverlay";
 import { HelpTip } from "./components/HelpTip";
+import { CalendarPanel } from "./components/CalendarPanel";
 import {
   REPORT_PREVIEW_SECTIONS,
   TAB_DESCRIPTIONS,
@@ -75,6 +77,8 @@ const tabs: Array<{ value: ReportType; label: string; icon: LucideIcon }> = [
   { value: "developers", label: "Desenvolvedores", icon: Users },
   { value: "requesters", label: "Solicitantes", icon: ClipboardList },
   { value: "testers", label: "Testers", icon: ShieldCheck },
+  { value: "reviewers", label: "Revisao em par", icon: Users },
+  { value: "formal_reviewers", label: "Revisores", icon: ClipboardList },
   { value: "management", label: "Gestao", icon: Settings },
   { value: "specific_metrics", label: "Metricas", icon: Database },
 ];
@@ -86,6 +90,8 @@ const fallbackOptions: ReportOptions = {
     { value: "flow", label: "Fluxo" },
     { value: "developers", label: "Desenvolvedores" },
     { value: "testers", label: "Testers" },
+    { value: "reviewers", label: "Revisao em par" },
+    { value: "formal_reviewers", label: "Revisores" },
     { value: "requesters", label: "Solicitantes" },
     { value: "sla", label: "SLA" },
     { value: "bottlenecks", label: "Gargalos" },
@@ -153,6 +159,7 @@ function App() {
   const [newCollaboratorName, setNewCollaboratorName] = useState("");
   const [syncingCollaborators, setSyncingCollaborators] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
   const historyMenuRef = useRef<HTMLDivElement>(null);
   const [metricKeys, setMetricKeys] = useState<string[]>(["team_summary", "flow", "sla"]);
 
@@ -583,6 +590,14 @@ function App() {
             ) : null}
           </div>
           <span className="user-chip">{username}</span>
+          <button
+            className={`icon-button${showCalendar ? " active" : ""}`}
+            type="button"
+            onClick={() => setShowCalendar((open) => !open)}
+            title="Calendario operacional"
+          >
+            <CalendarDays size={18} />
+          </button>
           <button className="icon-button" type="button" onClick={() => void bootstrap(token)} title="Atualizar">
             <RefreshCw size={18} />
           </button>
@@ -611,7 +626,18 @@ function App() {
 
       {error && <div className="app-alert">{error}</div>}
 
-      <section className="workspace">
+      {showCalendar ? (
+        <section className="workspace">
+          <CalendarPanel
+            token={token}
+            collaborators={collaborators}
+            month={month}
+            onError={setError}
+          />
+        </section>
+      ) : null}
+
+      <section className="workspace" style={showCalendar ? { display: "none" } : undefined}>
         <form className="report-form" onSubmit={handleGenerate}>
           <div className="panel-title">
             <FileText size={20} />
@@ -924,10 +950,10 @@ function KpiStrip({ report }: { report: GeneratedReport }) {
   if (report.report_type === "management") {
     const flow = metrics.flow?.team ?? {};
     const dora = metrics.dora ?? {};
+    const frequency = dora.deployment_frequency ?? {};
     const slaTeam = metrics.sla?.team ?? {};
     const discipline = metrics.process_discipline?.flow_conformity ?? {};
     const risk = metrics.risk_board ?? {};
-    const cfr = dora.change_failure_rate ?? {};
     return (
       <div className="kpi-strip">
         <Kpi label="Entregues" value={team.cards_delivered ?? "-"} term="cards_delivered" />
@@ -936,10 +962,11 @@ function KpiStrip({ report }: { report: GeneratedReport }) {
           value={slaTeam.compliance_pct != null ? `${slaTeam.compliance_pct}%` : "-"}
           term="compliance_pct"
         />
+        <Kpi label="Deploys" value={frequency.total ?? "-"} term="deployments_evaluated" />
         <Kpi
-          label="CFR DORA"
-          value={cfr.rate_pct != null ? `${cfr.rate_pct}%` : "-"}
-          term="rate_pct"
+          label="LT deploy P85"
+          value={dora.lead_time_deploy?.p85_human ?? "-"}
+          term="lead_time_deploy"
         />
         <Kpi
           label="Conformidade"
@@ -1069,12 +1096,36 @@ function MetricSections({ report }: { report: GeneratedReport }) {
     );
   }
 
+  if (report.report_type === "reviewers" || report.report_type === "formal_reviewers") {
+    const isPeer = report.report_type === "reviewers";
+    const rows = isPeer ? metrics.reviewers : metrics.formal_reviewers;
+    const title = isPeer ? "Revisao em par" : "Revisores";
+    return (
+      <div className="metric-sections">
+        {metrics.role_summary ? (
+          <ObjectPanel title="Resumo do relatorio" value={metrics.role_summary} />
+        ) : null}
+        {Array.isArray(rows) && rows.length > 0 ? <MetricTable title={title} rows={rows} /> : null}
+        {allowed.has("quality_gates") && metrics.quality_gates ? (
+          <ObjectPanel title="Dupla revisao" value={metrics.quality_gates} />
+        ) : null}
+        {showCardDossier ? <CardDossier title="Cards" metrics={metrics} /> : null}
+      </div>
+    );
+  }
+
   if (allowed.has("role_metrics") && metrics.role_summary) {
     return (
       <div className="metric-sections">
         <ObjectPanel title="Resumo do relatorio" value={metrics.role_summary} />
         {allowed.has("developers") && metrics.developers ? (
           <MetricTable title="Desenvolvedores" rows={metrics.developers} />
+        ) : null}
+        {allowed.has("reviewers") && metrics.reviewers ? (
+          <MetricTable title="Revisao em par" rows={metrics.reviewers} />
+        ) : null}
+        {allowed.has("formal_reviewers") && metrics.formal_reviewers ? (
+          <MetricTable title="Revisores" rows={metrics.formal_reviewers} />
         ) : null}
         {allowed.has("testers") && metrics.testers ? (
           <MetricTable title="Testers" rows={metrics.testers} />
@@ -1123,7 +1174,8 @@ function MetricSections({ report }: { report: GeneratedReport }) {
 
   const sections = [
     ["Desenvolvedores", "developers", metrics.developers],
-    ["Revisores", "reviewers", metrics.reviewers],
+    ["Revisao em par", "reviewers", metrics.reviewers],
+    ["Revisores", "formal_reviewers", metrics.formal_reviewers],
     ["Testers", "testers", metrics.testers],
     ["Solicitantes", "requesters", metrics.requesters],
     ["Projetos", "projects", metrics.projects],
@@ -1192,7 +1244,27 @@ function ManagementSections({
         <ObjectPanel title="Resumo do time" value={metrics.team_summary} />
       ) : null}
       {allowed.has("flow") && metrics.flow?.team ? (
-        <ObjectPanel title="Fluxo do time" value={metrics.flow.team} />
+        <>
+          <ObjectPanel title="Fluxo do time" value={metrics.flow.team} />
+          {Array.isArray(metrics.flow.aging_baseline) && metrics.flow.aging_baseline.length > 0 ? (
+            <MetricTable title="Baseline aging por etapa" rows={metrics.flow.aging_baseline} />
+          ) : null}
+          {Array.isArray(metrics.flow.net_flow?.series) && metrics.flow.net_flow.series.length > 0 ? (
+            <MetricTable title="Net flow semanal" rows={metrics.flow.net_flow.series} />
+          ) : null}
+        </>
+      ) : null}
+      {metrics.first_time_right ? (
+        <ObjectPanel title="First-Time-Right" value={metrics.first_time_right} />
+      ) : null}
+      {metrics.member_assignment ? (
+        <ObjectPanel title="Atribuicao de membros" value={metrics.member_assignment} />
+      ) : null}
+      {metrics.due_predictability ? (
+        <ObjectPanel title="Previsibilidade (due)" value={metrics.due_predictability} />
+      ) : null}
+      {metrics.board_moves ? (
+        <ObjectPanel title="Movimentacao entre boards" value={metrics.board_moves} />
       ) : null}
       {allowed.has("priority") && metrics.priority?.team ? (
         <ObjectPanel title="Prioridade" value={metrics.priority.team} />
@@ -1264,8 +1336,8 @@ function ManagementSections({
 const ROLE_DESCRIPTIONS: Record<string, string> = {
   solicitante: "Demandas criadas, planejamento, aprovacoes e entregas solicitadas no periodo.",
   desenvolvedor: "Entregas, pontos Fibonacci, retrabalhos, SLA e tempo em desenvolvimento.",
-  revisor_par: "Revisoes em par, retornos e qualidade antes do teste formal.",
-  revisor: "Revisoes formais, retornos e conformidade antes do deploy.",
+  revisor_par: "Sugestoes aceitas na revisao em par (garantia de qualidade) e escapes posteriores.",
+  revisor: "Revisoes formais, retornos ao DEV e escapes detectados no teste.",
   tester: "Testes, primeira passagem, retestes, retornos e problemas evitados.",
 };
 
@@ -1431,7 +1503,7 @@ function MetricTable({
   const description = tableId ? tableDescription(tableId) : "";
   const columns = Object.keys(rows[0] ?? {})
     .filter((key) => isSimple(rows[0][key]) || key === "top_bottleneck")
-    .filter((key) => !["id", "card_id", "scope", ...hiddenColumns].includes(key))
+    .filter((key) => !["id", "card_id", "scope", "sent_back", "avg_review_hours", "peer_review_returns", ...hiddenColumns].includes(key))
     .slice(0, 8);
 
   return (
@@ -1745,6 +1817,9 @@ function CardDetailBody({ card }: { card: Record<string, any> }) {
   ].filter((key) => card[key] !== undefined && card[key] !== null && card[key] !== "");
   const etapas = Array.isArray(card.etapas) ? card.etapas.slice(0, 10) : [];
   const retornos = Array.isArray(card.retornos) ? card.retornos.slice(0, 6) : [];
+  const undueSolutions = Array.isArray(card.undue_return_solutions)
+    ? card.undue_return_solutions
+    : [];
   const involvements = Array.isArray(card.collaborator_involvements) ? card.collaborator_involvements : [];
   const descricao = isRecord(card.descricao)
     ? Object.entries(card.descricao).filter(([, value]) => value)
@@ -1827,13 +1902,35 @@ function CardDetailBody({ card }: { card: Record<string, any> }) {
         </div>
       ) : null}
 
+      {undueSolutions.length ? (
+        <div className="return-list">
+          <strong>Soluções de retorno indevido</strong>
+          {undueSolutions.map((item: Record<string, any>, index: number) => (
+            <div key={`undue-${item.numero ?? index}-${item.at ?? ""}`}>
+              <strong>{`Solução de retorno indevido${item.numero != null ? ` #${item.numero}` : ""}`}</strong>
+              <p>{formatCell(item.motivo)}</p>
+              <p>{formatCell(item.solucao)}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {retornos.length ? (
         <div className="return-list">
           {retornos.map((item: Record<string, any>, index: number) => (
             <div key={`${item.numero ?? index}-${item.at ?? ""}`}>
-              <strong>{`Retorno ${formatCell(item.numero ?? index + 1)}`}</strong>
+              <strong>
+                {item.is_undue_test_return || item.kind === "undue"
+                  ? `Retorno indevido ${formatCell(item.numero ?? index + 1)}`
+                  : `Retorno ${formatCell(item.numero ?? index + 1)}`}
+              </strong>
               <span>{[item.tipo, item.subtipo, item.atribuido_a].filter(Boolean).join(" / ")}</span>
               <p>{formatCell(item.motivo || item.solucao)}</p>
+              {item.is_undue_test_return || item.kind === "undue" ? (
+                <p>
+                  <strong>Solução de retorno indevido:</strong> {formatCell(item.solucao)}
+                </p>
+              ) : null}
             </div>
           ))}
         </div>
@@ -2129,7 +2226,13 @@ function formatCell(value: unknown, key?: string): string {
     )[value] ?? metricLabel(value);
   }
   if (key === "scope" && typeof value === "string") {
-    return ({ developers: "Desenvolvedores", testers: "Testers", requesters: "Solicitantes" } as Record<string, string>)[value] ?? metricLabel(value);
+    return ({
+      developers: "Desenvolvedores",
+      testers: "Testers",
+      requesters: "Solicitantes",
+      reviewers: "Revisao em par",
+      formal_reviewers: "Revisores",
+    } as Record<string, string>)[value] ?? metricLabel(value);
   }
   if (isRecord(value)) {
     const title = value.title ?? value.name ?? value.card_name;

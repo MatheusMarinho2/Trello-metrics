@@ -19,6 +19,8 @@ class TemplateRule:
 class WorkflowConfig:
     def __init__(self, payload: dict[str, Any]) -> None:
         self.payload = payload
+        self.work_calendar = None
+        self.duration_person: str | None = None
         self.list_groups = {
             group: {normalize_key(name) for name in names}
             for group, names in payload.get("list_groups", {}).items()
@@ -92,8 +94,7 @@ class WorkflowConfig:
         if ignored_labels.intersection(normalized_labels):
             return True
 
-        if self._card_has_ignored_person(custom_fields):
-            return True
+        # ignore_card_people NÃO descarta o card — só métricas pessoais (should_ignore_person).
 
         placeholder_titles = {
             normalize_key(title)
@@ -105,16 +106,23 @@ class WorkflowConfig:
         level_fields = ("Nível", "Nivel", "Nível (Analise)", "Nivel (Analise)")
         return not any(custom_fields.get(field) for field in level_fields)
 
-    def _card_has_ignored_person(self, custom_fields: dict[str, str]) -> bool:
+    def should_ignore_person(self, name: str | None) -> bool:
+        """Pessoas em ignore_card_people não geram linha pessoal; o card continua metricado."""
+        if not name:
+            return False
         ignored = self.payload.get("ignore_card_people", [])
         if not ignored:
             return False
-        ignored_keys = {_person_key(name) for name in ignored}
+        ignored_keys = {_person_key(item) for item in ignored}
         ignored_keys.discard("")
         if not ignored_keys:
             return False
+        return _person_key(name) in ignored_keys
+
+    def _card_has_ignored_person(self, custom_fields: dict[str, str]) -> bool:
+        # Mantido para compat/tests legados; não usado em should_ignore_card.
         for value in custom_fields.values():
-            if _person_key(value) in ignored_keys:
+            if self.should_ignore_person(str(value) if value is not None else None):
                 return True
         return False
 

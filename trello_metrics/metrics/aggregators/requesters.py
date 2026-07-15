@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from trello_metrics.domain.workflow import WorkflowConfig
 from trello_metrics.metrics.timeline import CardTimeline
 from trello_metrics.utils.dates import human_hours
 from trello_metrics.utils.period import MonthPeriod
@@ -55,11 +56,14 @@ class RequesterAccumulator:
 def aggregate_requesters(
     timelines: list[CardTimeline],
     period: MonthPeriod,
+    workflow: WorkflowConfig | None = None,
 ) -> list[dict[str, Any]]:
     accumulators: dict[str, RequesterAccumulator] = {}
 
     for timeline in timelines:
         if timeline.solicitante == "Nao informado":
+            continue
+        if workflow is not None and workflow.should_ignore_person(timeline.solicitante):
             continue
 
         requester = timeline.solicitante

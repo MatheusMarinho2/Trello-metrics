@@ -138,6 +138,60 @@ class Collaborator(models.Model):
         return self.name
 
 
+class WorkCalendarException(models.Model):
+    KIND_CHOICES = (
+        ("holiday", "Feriado / dia inteiro fora"),
+        ("schedule_override", "Meio periodo / expediente curto"),
+        ("exclude_window", "Exclusao de janela"),
+    )
+    SCOPE_CHOICES = (
+        ("all", "Todos"),
+        ("collaborators", "Colaboradores especificos"),
+    )
+
+    date = models.DateField(db_index=True)
+    kind = models.CharField(max_length=32, choices=KIND_CHOICES)
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
+    scope = models.CharField(max_length=24, choices=SCOPE_CHOICES, default="all")
+    collaborators = models.ManyToManyField(
+        Collaborator,
+        blank=True,
+        related_name="calendar_exceptions",
+    )
+    note = models.CharField(max_length=240, blank=True)
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-date", "-id")
+
+    def __str__(self) -> str:
+        return f"{self.date} {self.kind}"
+
+
+class OvertimeEntry(models.Model):
+    collaborator = models.ForeignKey(
+        Collaborator,
+        related_name="overtime_entries",
+        on_delete=models.CASCADE,
+    )
+    date = models.DateField(db_index=True)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    note = models.CharField(max_length=240, blank=True)
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-date", "-id")
+
+    def __str__(self) -> str:
+        return f"{self.collaborator_id} {self.date} {self.start_time}-{self.end_time}"
+
+
 class GeneratedReport(models.Model):
     REPORT_TYPES = (
         ("general", "Geral"),
@@ -145,6 +199,8 @@ class GeneratedReport(models.Model):
         ("developers", "Desenvolvedores"),
         ("requesters", "Solicitantes"),
         ("testers", "Testers"),
+        ("reviewers", "Revisao em par"),
+        ("formal_reviewers", "Revisores"),
         ("management", "Gestao"),
         ("specific_metrics", "Metricas especificas"),
     )

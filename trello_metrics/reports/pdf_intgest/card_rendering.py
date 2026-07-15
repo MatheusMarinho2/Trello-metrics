@@ -121,9 +121,29 @@ def render_card_block(card: dict[str, Any]) -> str:
         motivo = retorno.get("motivo") or "motivo nao registrado"
         solucao = retorno.get("solucao") or "solucao nao registrada"
         atribuido = retorno.get("atribuido_a") or "desconhecido"
+        undue = bool(retorno.get("is_undue_test_return") or retorno.get("kind") == "undue")
+        solucao_label = "Solução de retorno indevido" if undue else "Solucao"
+        marker = " · Indevido" if undue else ""
         events += (
-            f'<div class="rt-retorno">Retorno {retorno.get("numero", "?")} ({esc(tipo)}{esc(subtipo)}): '
-            f'{esc(motivo)} — Solucao: {esc(solucao)} — Atribuido a: {esc(atribuido)}</div>'
+            f'<div class="rt-retorno">Retorno {retorno.get("numero", "?")} ({esc(tipo)}{esc(subtipo)}{esc(marker)}): '
+            f'{esc(motivo)} — {esc(solucao_label)}: {esc(solucao)} — Atribuido a: {esc(atribuido)}</div>'
+        )
+    undue_block = ""
+    undue_items = card.get("undue_return_solutions") or []
+    if undue_items:
+        undue_html = ""
+        for item in undue_items:
+            numero = item.get("numero")
+            num_txt = f" #{numero}" if numero is not None else ""
+            motivo = item.get("motivo") or "motivo nao registrado"
+            solucao = item.get("solucao") or "solucao nao registrada"
+            undue_html += (
+                f'<div class="rt-retorno rt-undue">Solução de retorno indevido{esc(num_txt)}: '
+                f'{esc(motivo)} — {esc(solucao)}</div>'
+            )
+        undue_block = (
+            f'<div class="rt-events-wrap"><div class="rt-subttl">Soluções de retorno indevido</div>'
+            f"{undue_html}</div>"
         )
     for pausa in card.get("pausas") or []:
         motivo = pausa.get("motivo") or "motivo nao registrado"
@@ -140,5 +160,5 @@ def render_card_block(card: dict[str, Any]) -> str:
         f'<div class="rt-card"><div class="rt-card-head">{id_html}'
         f'<div class="rt-card-ttl">{esc(card.get("card_name"))}</div></div>'
         f'<div class="rt-card-tags">{tags}</div>{extra}{meta}'
-        f'<div class="rt-chips">{chips}</div>{desc_html}{etapas_html}{events_html}</div>'
+        f'<div class="rt-chips">{chips}</div>{desc_html}{etapas_html}{undue_block}{events_html}</div>'
     )

@@ -83,7 +83,7 @@ class MetricsSelectionService:
             return deepcopy(metrics)
 
         cleaned = deepcopy(metrics)
-        for key in ("developers", "developer_profiles", "reviewers", "testers", "requesters", "collaborators"):
+        for key in ("developers", "developer_profiles", "reviewers", "formal_reviewers", "testers", "requesters", "collaborators"):
             rows = cleaned.get(key)
             if isinstance(rows, list):
                 cleaned[key] = [

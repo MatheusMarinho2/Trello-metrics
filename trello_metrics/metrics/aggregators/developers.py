@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from trello_metrics.domain.workflow import WorkflowConfig
 from trello_metrics.metrics.timeline import CardTimeline
 from trello_metrics.utils.dates import human_hours, isoformat
 from trello_metrics.utils.period import MonthPeriod
@@ -39,9 +40,10 @@ class DevAccumulator:
             self.cards_delivered_normal += 1
         self.dev_work_hours_total += timeline.dev_work_hours
         self.pipeline_wait_hours_total += timeline.pipeline_wait_hours
+        # peer_review → development = sugestão aceita (colaboração), não penalidade
         self.peer_review_returns += timeline.peer_review_returns
         self.return_dev_count += timeline.developer_penalty_return_count
-        self.tester_quality_returns += timeline.return_dev_by_teste_count
+        self.tester_quality_returns += timeline.return_dev_by_teste_legitimate_count
         if timeline.developer_penalty_return_count > 0:
             self.cards_with_rework += 1
         if timeline.accepted_without_dev_return:
@@ -96,6 +98,7 @@ class DevAccumulator:
             "avg_hours_per_point": round(avg_per_point, 2),
             "avg_dev_hours": round(avg_dev_work, 2),
             "avg_dev_human": human_hours(avg_dev_work),
+            "suggestions_accepted": self.peer_review_returns,
             "peer_review_returns": self.peer_review_returns,
             "return_dev_count": self.return_dev_count,
             "tester_quality_returns": self.tester_quality_returns,
@@ -134,8 +137,8 @@ def _developer_card_entry(timeline: CardTimeline) -> dict[str, Any]:
         "pipeline_wait_ratio_pct": wait_ratio,
         "return_dev_count": timeline.developer_penalty_return_count,
         "raw_return_dev_count": timeline.return_dev_count,
-        "prevented_problems": timeline.return_dev_by_teste_count,
-        "tester_quality_returns": timeline.return_dev_by_teste_count,
+        "prevented_problems": timeline.return_dev_by_teste_legitimate_count,
+        "tester_quality_returns": timeline.return_dev_by_teste_legitimate_count,
         "accepted_without_dev_return": timeline.accepted_without_dev_return,
         "etapas_count": len(timeline.stage_timeline),
     }
@@ -144,6 +147,7 @@ def _developer_card_entry(timeline: CardTimeline) -> dict[str, Any]:
 def aggregate_developers(
     timelines: list[CardTimeline],
     period: MonthPeriod,
+    workflow: WorkflowConfig | None = None,
 ) -> list[dict[str, Any]]:
     accumulators: dict[str, DevAccumulator] = {}
 
@@ -152,6 +156,8 @@ def aggregate_developers(
             continue
         dev = timeline.desenvolvedor
         if dev == "Nao informado" or not dev.startswith("D-"):
+            continue
+        if workflow is not None and workflow.should_ignore_person(dev):
             continue
         if dev not in accumulators:
             accumulators[dev] = DevAccumulator(name=dev)
@@ -165,6 +171,7 @@ def aggregate_developers(
 def aggregate_developer_profiles(
     timelines: list[CardTimeline],
     period: MonthPeriod,
+    workflow: WorkflowConfig | None = None,
 ) -> list[dict[str, Any]]:
     accumulators: dict[str, DevAccumulator] = {}
 
@@ -176,6 +183,8 @@ def aggregate_developer_profiles(
         if not timeline.desenvolvedor.startswith("D-"):
             continue
         dev = timeline.desenvolvedor
+        if workflow is not None and workflow.should_ignore_person(dev):
+            continue
         if dev not in accumulators:
             accumulators[dev] = DevAccumulator(name=dev)
         accumulators[dev].add_delivery(timeline)

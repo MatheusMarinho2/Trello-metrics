@@ -13,22 +13,28 @@ from trello_metrics.metrics.aggregators.bottlenecks import aggregate_bottlenecks
 from trello_metrics.metrics.aggregators.card_dossier import aggregate_card_dossier
 from trello_metrics.metrics.aggregators.collaborators import aggregate_collaborators
 from trello_metrics.metrics.aggregators.developers import aggregate_developer_profiles, aggregate_developers
-from trello_metrics.metrics.aggregators.dora import aggregate_dora_metrics
+from trello_metrics.metrics.aggregators.dora import DORA_METRICS_ENABLED, aggregate_dora_metrics
 from trello_metrics.metrics.aggregators.fibonacci_points import aggregate_fibonacci_points
+from trello_metrics.metrics.aggregators.first_time_right import aggregate_first_time_right
 from trello_metrics.metrics.aggregators.flow import aggregate_flow_metrics
+from trello_metrics.metrics.aggregators.predictability import (
+    aggregate_board_moves,
+    aggregate_due_predictability,
+    aggregate_member_assignment,
+)
 from trello_metrics.metrics.aggregators.priority import aggregate_priority_metrics
 from trello_metrics.metrics.aggregators.process_discipline import aggregate_process_discipline
 from trello_metrics.metrics.aggregators.projects import aggregate_projects
 from trello_metrics.metrics.aggregators.quality_gates import aggregate_quality_gates
 from trello_metrics.metrics.aggregators.requesters import aggregate_requesters
 from trello_metrics.metrics.aggregators.reviewers import aggregate_reviewers
+from trello_metrics.metrics.aggregators.formal_reviewers import aggregate_formal_reviewers
 from trello_metrics.metrics.aggregators.risk import aggregate_risk_board
 from trello_metrics.metrics.aggregators.sla import aggregate_sla
 from trello_metrics.metrics.aggregators.testers import aggregate_testers
 from trello_metrics.metrics.aggregators.trends import aggregate_trends
 from trello_metrics.metrics.timeline import build_card_timelines
 from trello_metrics.parsers.export_loader import movements_by_card
-from trello_metrics.utils.business_hours import duration_hours
 from trello_metrics.utils.dates import human_hours, isoformat
 from trello_metrics.utils.period import MonthPeriod, month_range, parse_month
 
@@ -64,6 +70,7 @@ class MetricsEngine:
         month: str | None = None,
         history_months: int = 6,
         timezone_name: str = "America/Sao_Paulo",
+        work_calendar=None,
     ) -> None:
         self.workflow = workflow
         self.now = now or datetime.now(timezone.utc)
@@ -71,6 +78,9 @@ class MetricsEngine:
         self.month = month
         self.history_months = history_months
         self.timezone_name = timezone_name
+        self.work_calendar = work_calendar
+        if work_calendar is not None:
+            self.workflow.work_calendar = work_calendar
 
     def calculate(self, board: BoardData) -> MetricsResult:
         cards = [
@@ -97,9 +107,9 @@ class MetricsEngine:
 
         overview = self._overview(board, cards, card_kinds)
         fields = self._custom_field_metrics(cards)
-        movements = self._movement_metrics(cards, card_by_id, events_by_card)
+        movements = self._movement_metrics(cards, card_by_id, events_by_card, timelines)
         card_details = self._card_details(cards, card_kinds, events_by_card, timelines)
-        data_quality = self._data_quality(cards, card_kinds)
+        data_quality = self._data_quality(cards, card_kinds, board)
 
         payload: dict[str, Any] = {
             "board": {
@@ -114,14 +124,17 @@ class MetricsEngine:
             "cards": card_details,
             "data_quality": data_quality,
         }
+        if self.work_calendar is not None:
+            payload["calendar_applied"] = self.work_calendar.to_applied_payload()
+        elif getattr(self.workflow, "work_calendar", None) is not None:
+            payload["calendar_applied"] = self.workflow.work_calendar.to_applied_payload()
 
         if self.month:
             period = parse_month(self.month, self.timezone_name)
             periods = month_range(self.month, self.history_months, self.timezone_name)
-            developers = aggregate_developers(timelines, period)
+            developers = aggregate_developers(timelines, period, self.workflow)
             flow = aggregate_flow_metrics(timelines, cards, self.workflow, period, self.now)
             priority = aggregate_priority_metrics(timelines, period, flow["aging_wip"], self.workflow)
-            dora = aggregate_dora_metrics(timelines, period, self.workflow)
             risk_board = aggregate_risk_board(timelines, flow["aging_wip"])
             payload["period"] = {
                 "month": self.month,
@@ -129,19 +142,27 @@ class MetricsEngine:
                 "start": isoformat(period.start),
                 "end": isoformat(period.end),
             }
-            testers = aggregate_testers(timelines, period)
+            testers = aggregate_testers(timelines, period, self.workflow)
             payload["team_summary"] = _team_summary(
                 developers, testers, timelines, self.workflow, period
             )
             payload["flow"] = flow
             payload["priority"] = priority
-            payload["dora"] = dora
-            payload["fibonacci_points"] = aggregate_fibonacci_points(timelines, period)
+            if DORA_METRICS_ENABLED:
+                payload["dora"] = aggregate_dora_metrics(timelines, period, self.workflow)
+            payload["fibonacci_points"] = aggregate_fibonacci_points(
+                timelines, period, self.workflow
+            )
             payload["developers"] = developers
-            payload["developer_profiles"] = aggregate_developer_profiles(timelines, period)
-            payload["reviewers"] = aggregate_reviewers(timelines, period)
+            payload["developer_profiles"] = aggregate_developer_profiles(
+                timelines, period, self.workflow
+            )
+            payload["reviewers"] = aggregate_reviewers(timelines, period, self.workflow)
+            payload["formal_reviewers"] = aggregate_formal_reviewers(
+                timelines, period, self.workflow
+            )
             payload["testers"] = testers
-            payload["requesters"] = aggregate_requesters(timelines, period)
+            payload["requesters"] = aggregate_requesters(timelines, period, self.workflow)
             payload["projects"] = aggregate_projects(timelines, period)
             payload["bottlenecks"] = aggregate_bottlenecks(
                 timelines, cards, self.workflow, period
@@ -155,6 +176,9 @@ class MetricsEngine:
                 self.timezone_name,
             )
             payload["quality_gates"] = aggregate_quality_gates(timelines, period)
+            payload["first_time_right"] = aggregate_first_time_right(
+                timelines, period, self.workflow
+            )
             payload["process_discipline"] = aggregate_process_discipline(
                 timelines,
                 board.custom_field_changes,
@@ -163,7 +187,9 @@ class MetricsEngine:
             )
             payload["analysis_workflow"] = aggregate_analysis_workflow(timelines, period)
             payload["risk_board"] = risk_board
-            payload["card_dossier"] = aggregate_card_dossier(timelines, period)
+            payload["card_dossier"] = aggregate_card_dossier(
+                timelines, period, self.workflow
+            )
             payload["collaborators"] = aggregate_collaborators(
                 timelines,
                 period,
@@ -180,6 +206,21 @@ class MetricsEngine:
                 self.workflow,
                 period,
             )
+            payload["member_assignment"] = aggregate_member_assignment(
+                timelines,
+                cards,
+                board.member_events,
+                self.workflow,
+                period,
+            )
+            payload["due_predictability"] = aggregate_due_predictability(
+                timelines,
+                cards,
+                board.due_changes,
+                self.workflow,
+                period,
+            )
+            payload["board_moves"] = aggregate_board_moves(board.board_move_events, period)
 
         return MetricsResult(payload)
 
@@ -235,6 +276,7 @@ class MetricsEngine:
         cards: list[TrelloCard],
         card_by_id: dict[str, TrelloCard],
         events_by_card: dict[str, list[MovementEvent]],
+        timelines: list,
     ) -> dict[str, Any]:
         transition_counter: Counter[str] = Counter()
         target_group_counter: Counter[str] = Counter()
@@ -265,10 +307,10 @@ class MetricsEngine:
                     if target_group in {"return_developer", "return_support"}:
                         returns_by_responsible[role][responsible] += 1
 
-            for span in self._timeline_spans(card, events):
-                list_name = span["list_name"]
-                hours = span["hours"]
-                time_by_list[list_name]["total_hours"] += hours
+        for timeline in timelines:
+            for stage in timeline.stage_timeline:
+                list_name = stage.list_name or "Sem lista"
+                time_by_list[list_name]["total_hours"] += stage.hours
                 time_by_list[list_name]["spans"] += 1
 
         time_rows = []
@@ -339,7 +381,11 @@ class MetricsEngine:
                 "return_developer_count": timeline.return_dev_count if timeline else 0,
                 "return_support_count": timeline.return_sup_count if timeline else 0,
                 "pause_count": timeline.pause_count if timeline else 0,
-                "cycle_time_hours": self._cycle_time_hours(card, kind, events),
+                "cycle_time_hours": (
+                    timeline.metric_cycle_hours
+                    if timeline and timeline.metric_cycle_hours is not None
+                    else (timeline.cycle_time_hours if timeline else None)
+                ),
                 "flow_flags": self._flow_flags(
                     kind,
                     groups_seen,
@@ -348,7 +394,7 @@ class MetricsEngine:
                 "delivered_at": isoformat(timeline.delivered_at) if timeline else None,
                 "fibonacci_level": timeline.fibonacci_level if timeline else None,
             }
-            detail["cycle_time_human"] = human_hours(detail["cycle_time_hours"])
+            detail["cycle_time_human"] = human_hours(detail["cycle_time_hours"] or 0.0)
             details.append(detail)
         return details
 
@@ -356,9 +402,41 @@ class MetricsEngine:
         self,
         cards: list[TrelloCard],
         card_kinds: dict[str, str],
+        board: BoardData,
     ) -> dict[str, Any]:
+        unknown_lists: dict[str, dict[str, int]] = defaultdict(
+            lambda: {"cards": 0, "movements": 0}
+        )
+        for card in cards:
+            group = self.workflow.group_for_list(card.current_list_name)
+            if group == "unknown" and card.current_list_name:
+                unknown_lists[card.current_list_name]["cards"] += 1
+        for event in board.movements:
+            for list_name in (event.from_list_name, event.to_list_name):
+                if not list_name:
+                    continue
+                if self.workflow.group_for_list(list_name) == "unknown":
+                    unknown_lists[list_name]["movements"] += 1
+
+        unknown_rows = [
+            {
+                "list_name": name,
+                "cards": values["cards"],
+                "movements": values["movements"],
+            }
+            for name, values in sorted(
+                unknown_lists.items(),
+                key=lambda item: item[1]["cards"] + item[1]["movements"],
+                reverse=True,
+            )
+        ]
+
         if not cards:
-            return {"cards_with_required_fields_pct": 0.0, "by_kind": []}
+            return {
+                "cards_with_required_fields_pct": 0.0,
+                "by_kind": [],
+                "unknown_lists": unknown_rows,
+            }
 
         by_kind: dict[str, dict[str, int]] = defaultdict(lambda: {"ok": 0, "total": 0})
         for card in cards:
@@ -383,55 +461,8 @@ class MetricsEngine:
                 }
                 for kind, values in by_kind.items()
             ],
+            "unknown_lists": unknown_rows,
         }
-
-    def _timeline_spans(
-        self,
-        card: TrelloCard,
-        events: list[MovementEvent],
-    ) -> list[dict[str, Any]]:
-        points = [event for event in sorted(events, key=lambda item: item.at) if event.to_list_name]
-        if not points and card.created_at and card.current_list_name:
-            return [
-                {
-                    "list_name": card.current_list_name,
-                    "start": card.created_at,
-                    "end": card.date_closed or self.now,
-                    "hours": duration_hours(card.created_at, card.date_closed or self.now, self.workflow),
-                }
-            ]
-
-        spans: list[dict[str, Any]] = []
-        for index, point in enumerate(points):
-            next_point = points[index + 1] if index + 1 < len(points) else None
-            end = next_point.at if next_point else card.date_closed or self.now
-            list_name = point.to_list_name or "Sem lista"
-            spans.append(
-                {
-                    "list_name": list_name,
-                    "start": point.at,
-                    "end": end,
-                    "hours": duration_hours(point.at, end, self.workflow),
-                }
-            )
-        return spans
-
-    def _cycle_time_hours(
-        self,
-        card: TrelloCard,
-        kind: str,
-        events: list[MovementEvent],
-    ) -> float:
-        ordered = sorted(events, key=lambda item: item.at)
-        start = card.created_at or (ordered[0].at if ordered else None)
-        done_groups = set(self.workflow.done_groups_for_kind(kind))
-        end = None
-        for event in ordered:
-            if self.workflow.group_for_list(event.to_list_name) in done_groups:
-                end = event.at
-                break
-        end = end or card.date_closed or self.now
-        return duration_hours(start, end, self.workflow)
 
     @staticmethod
     def _flow_flags(kind: str, groups_seen: list[str], pause_count: int = 0) -> list[str]:
@@ -476,7 +507,9 @@ def _team_summary(
     dev_delivered = [
         timeline
         for timeline in delivered
-        if timeline.desenvolvedor != "Nao informado" and timeline.desenvolvedor.startswith("D-")
+        if timeline.desenvolvedor != "Nao informado"
+        and timeline.desenvolvedor.startswith("D-")
+        and not workflow.should_ignore_person(timeline.desenvolvedor)
     ]
     cards_count = len(delivered)
     fibonacci_normal = sum(
@@ -491,7 +524,9 @@ def _team_summary(
     )
     accepted = sum(1 for timeline in delivered if timeline.accepted_without_dev_return)
     return_dev = sum(timeline.developer_penalty_return_count for timeline in delivered)
-    tester_quality_returns = sum(timeline.return_dev_by_teste_count for timeline in delivered)
+    tester_quality_returns = sum(
+        timeline.return_dev_by_teste_legitimate_count for timeline in delivered
+    )
 
     # Retrabalho do dev: qualquer RETORNO (DEV), inclusive escape encontrado em teste.
     # Retornos vindos do teste tambem contam como problemas evitados pelo tester.

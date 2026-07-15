@@ -54,7 +54,8 @@ def write_html_report(metrics: dict[str, Any], output_path: str | Path) -> Path:
         <a href="#fibonacci">Pontos Fibonacci</a>
         <a href="#collaborators">Colaboradores</a>
         <a href="#developers">Desenvolvedores</a>
-        <a href="#reviewers">Revisores</a>
+        <a href="#reviewers">Revisao em par</a>
+        <a href="#formal-reviewers">Revisores</a>
         <a href="#testers">Testers</a>
         <a href="#requesters">Solicitantes</a>
         <a href="#projects">Projetos</a>
@@ -124,8 +125,8 @@ def write_html_report(metrics: dict[str, Any], output_path: str | Path) -> Path:
         </section>
         <section class="section" id="dora">
           <div class="section-header">
-            <h3>DORA adaptado</h3>
-            <p>Deploys, falhas de mudanca e restauracao</p>
+            <h3>DORA (parcial)</h3>
+            <p>Frequencia de deploy e lead time de mudanca</p>
           </div>
           <div id="dora-content"></div>
         </section>
@@ -162,8 +163,12 @@ def write_html_report(metrics: dict[str, Any], output_path: str | Path) -> Path:
           <div id="developers-content"></div>
         </section>
         <section class="section" id="reviewers">
-          <div class="section-header"><h3>Revisores</h3><p>Revisao em par e formal</p></div>
+          <div class="section-header"><h3>Revisao em par</h3><p>Sugestoes aceitas e garantia de qualidade</p></div>
           <div id="reviewers-content"></div>
+        </section>
+        <section class="section" id="formal-reviewers">
+          <div class="section-header"><h3>Revisores</h3><p>Revisao formal e escapes</p></div>
+          <div id="formal-reviewers-content"></div>
         </section>
         <section class="section" id="testers">
           <div class="section-header"><h3>Testers / Suporte</h3><p>Garantia de qualidade e retestes</p></div>

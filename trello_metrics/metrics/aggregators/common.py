@@ -117,13 +117,44 @@ def stage_duration_until(
     stage: StageTimelineEntry,
     cap_at: datetime | None,
     workflow: WorkflowConfig,
+    *,
+    person: str | None = None,
 ) -> float:
     if not stage.start_at:
         return 0.0
     end_at = stage.end_at or cap_at
     if cap_at and end_at and end_at > cap_at:
         end_at = cap_at
-    return duration_hours(stage.start_at, end_at, workflow)
+    return duration_hours(stage.start_at, end_at, workflow, person=person)
+
+
+def calendar_person_for_timeline(
+    timeline: CardTimeline,
+    group: str | None = None,
+) -> str | None:
+    """Pessoa cujo calendario (HE/excecao por colaborador) vale para o trecho de tempo."""
+    group_people = {
+        "analysis_planning": "solicitante",
+        "planning": "solicitante",
+        "approval": "solicitante",
+        "development": "desenvolvedor",
+        "return_developer": "desenvolvedor",
+        "peer_review": "revisor_par",
+        "review": "revisor",
+        "testing": "tester",
+        "waiting_test": "tester",
+    }
+    if group:
+        attr = group_people.get(group)
+        if attr:
+            person = str(getattr(timeline, attr, "") or "").strip()
+            if person and person.lower() not in {"nao informado", "não informado", "-"}:
+                return person
+    for attr in ("desenvolvedor", "tester", "solicitante", "revisor", "revisor_par"):
+        person = str(getattr(timeline, attr, "") or "").strip()
+        if person and person.lower() not in {"nao informado", "não informado", "-"}:
+            return person
+    return None
 
 
 def timeline_card_ref(timeline: CardTimeline) -> dict[str, Any]:
@@ -140,8 +171,11 @@ def timeline_card_ref(timeline: CardTimeline) -> dict[str, Any]:
     }
 
 
-def week_key(moment: datetime | None) -> str:
+def week_key(moment: datetime | None, timezone_name: str = "America/Sao_Paulo") -> str:
     if moment is None:
         return "sem-data"
-    year, week, _ = moment.isocalendar()
+    from zoneinfo import ZoneInfo
+
+    local = moment.astimezone(ZoneInfo(timezone_name))
+    year, week, _ = local.isocalendar()
     return f"{year:04d}-W{week:02d}"

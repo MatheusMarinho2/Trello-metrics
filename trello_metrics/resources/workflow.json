@@ -58,11 +58,11 @@
     ],
     "waiting_review": [
       "AGUARDANDO REVISAO FORMAL",
-      "AGUARDANDO REVISÃƒO FORMAL"
+      "AGUARDANDO REVISÃƒO FORMAL",
+      "AGUARDANDO REVISÃƒO",
+      "AGUARDANDO REVISAO"
     ],
     "review_control": [
-      "AGUARDANDO REVISÃƒO",
-      "AGUARDANDO REVISAO",
       "AGUARDANDO REVISÃƒO (OPCIONAL)",
       "AGUARDANDO REVISAO (OPCIONAL)",
       "AGUARDANDO REVISÃƒO (Opcional)",
@@ -148,7 +148,6 @@
     "backlog",
     "waiting_review",
     "waiting_deploy",
-    "cicd_homologacao",
     "waiting_test",
     "waiting_production"
   ],
@@ -190,8 +189,8 @@
     "backlog",
     "backlog_analysis",
     "peer_review",
+    "waiting_review",
     "review",
-    "cicd_homologacao",
     "waiting_deploy",
     "waiting_test",
     "testing",
@@ -213,6 +212,17 @@
         { "weekdays": [3, 4], "end": "17:30" }
       ]
     },
+    "holidays": [
+      "2026-01-01",
+      "2026-04-03",
+      "2026-04-21",
+      "2026-05-01",
+      "2026-09-07",
+      "2026-10-12",
+      "2026-11-02",
+      "2026-11-15",
+      "2026-12-25"
+    ],
     "risk_threshold_pct": 80,
     "stage_hours": {
       "planning": 48,
@@ -269,6 +279,7 @@
   },
   "ignore_card_labels": ["CONTROLE", "NAO METRICAR", "NÃƒO METRICAR"],
   "ignore_card_people": ["Jucelio.Moura"],
+  "_comment_ignore_card_people": "Ignore de pessoa: nao gera metricas pessoais; o card e os demais colaboradores continuam contando.",
   "placeholder_card_titles": [
     "PM CLIENTE / INFORMA O TITULO DO PROBLEMA",
     "PM CLIENTE / INFORMA O TÃTULO DO PROBLEMA",

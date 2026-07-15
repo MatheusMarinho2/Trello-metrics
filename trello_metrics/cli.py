@@ -12,7 +12,7 @@ from trello_metrics.metrics.engine import MetricsEngine
 from trello_metrics.parsers.export_loader import load_board_export, parse_board_export
 from trello_metrics.reports.html_report import write_html_from_json_file, write_html_report
 from trello_metrics.reports.pdf_report import write_pdf_report
-from trello_metrics.trello_client import TrelloClient
+from trello_metrics.trello_client import DEFAULT_ACTION_FILTER, TrelloClient
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -52,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
     fetch_parser.add_argument("--output", default="data/trello_board_export.json")
     fetch_parser.add_argument(
         "--action-filter",
-        default="createCard,updateCard:idList,updateCard:closed,copyCard,deleteCard,updateCustomFieldItem",
+        default=DEFAULT_ACTION_FILTER,
         help="Filtro de actions da API do Trello.",
     )
 

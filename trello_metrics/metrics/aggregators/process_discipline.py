@@ -31,10 +31,11 @@ OPTIONAL_GROUPS = {"approval", "backlog", "review"}
 EXCEPTION_GROUPS = {"return_support", "return_developer", "paused"}
 TERMINAL_GROUPS = frozenset({"production", "direct_production", "analysis_done"})
 POST_TERMINAL_RETURN_GROUPS = frozenset({"return_developer", "return_support"})
-DIRECT_PRODUCTION_WORK_ORIGINS = frozenset({"development", "peer_review", "review"})
+DIRECT_PRODUCTION_WORK_ORIGINS = frozenset({"development", "peer_review", "review", "waiting_deploy", "cicd_homologacao"})
 DIRECT_PRODUCTION_SKIPPED_GROUPS = frozenset(
-    {"waiting_deploy", "waiting_test", "testing", "waiting_production"}
+    {"waiting_deploy", "cicd_homologacao", "waiting_test", "testing", "waiting_production"}
 )
+DEPLOY_TO_DIRECT_ORIGINS = frozenset({"waiting_deploy", "cicd_homologacao"})
 
 REQUIRED_FIELDS_BY_STAGE = {
     "development": ("Desenvolvedor", "Sistema", "Prioridade", "Nivel", "Solicitante"),
@@ -95,6 +96,8 @@ def _flow_check(timeline: CardTimeline, workflow: WorkflowConfig) -> dict[str, A
     raw = _raw_groups(timeline)
     normalized = ["production" if group == "direct_production" else group for group in groups]
     used_direct_production = "direct_production" in raw
+    used_deploy_to_direct = _used_deploy_to_direct_production(raw)
+    bypass_test_path = used_direct_production
     positions = {group: index for index, group in enumerate(CANONICAL_ORDER)}
     issues: list[str] = []
     illegal_backtracks: list[dict[str, Any]] = []
@@ -113,15 +116,23 @@ def _flow_check(timeline: CardTimeline, workflow: WorkflowConfig) -> dict[str, A
     if timeline.kind == "problem":
         test_stages = ("waiting_deploy", "waiting_test", "testing")
 
-        if used_direct_production:
-            if not DIRECT_PRODUCTION_WORK_ORIGINS.intersection(normalized):
+        # Atalho ilegal: deploy/CI -> Em producao (sem usar Diretamente na producao)
+        if used_deploy_to_direct is False and _deploy_jumped_to_standard_production(raw):
+            issues.append(
+                "saiu de Aguardando deploy/CI para Em producao — use Diretamente na producao "
+                "para cards que nao passam por teste"
+            )
+
+        if bypass_test_path:
+            if not DIRECT_PRODUCTION_WORK_ORIGINS.intersection(set(raw) | set(normalized)):
                 missing_core.append("development")
                 issues.append(
-                    "producao direta sem passar por Em andamento, Revisao em par ou Em revisao"
+                    "producao direta sem passar por Em andamento, Revisao em par, "
+                    "Em revisao ou Aguardando deploy"
                 )
         else:
             for group in ("development", *test_stages):
-                if group not in normalized:
+                if group not in normalized and group not in raw:
                     missing_core.append(group)
                     issues.append(f"pulou {workflow.title_for_group(group)}")
 
@@ -146,9 +157,32 @@ def _flow_check(timeline: CardTimeline, workflow: WorkflowConfig) -> dict[str, A
         "illegal_backtracks": illegal_backtracks,
         "return_after_terminal": timeline.return_after_terminal,
         "used_direct_production": used_direct_production,
+        "used_deploy_to_direct": used_deploy_to_direct,
         "issues": issues,
         "is_compliant": not issues,
     }
+
+
+def _used_deploy_to_direct_production(raw: list[str]) -> bool:
+    """Atalho legitimo: Aguardando deploy/CI -> Diretamente na producao (sem teste)."""
+    has_deploy = bool(DEPLOY_TO_DIRECT_ORIGINS.intersection(raw))
+    has_direct = "direct_production" in raw
+    has_test = bool({"waiting_test", "testing"} & set(raw))
+    return has_deploy and has_direct and not has_test
+
+
+def _deploy_jumped_to_standard_production(raw: list[str]) -> bool:
+    """Violacao: passou por deploy/CI e foi para Em producao sem Diretamente na producao nem teste."""
+    if "direct_production" in raw:
+        return False
+    if "production" not in raw:
+        return False
+    if not DEPLOY_TO_DIRECT_ORIGINS.intersection(raw):
+        return False
+    if {"waiting_test", "testing"} & set(raw):
+        return False
+    # Sem waiting_production no caminho padrao apos deploy tambem indica pulo indevido
+    return "waiting_production" not in raw
 
 
 def _post_terminal_return_summary(timelines: list[CardTimeline]) -> dict[str, Any]:
@@ -203,7 +237,7 @@ def _skipped_stage_summary(
                     normalized_seen.add(group)
         if "production" in normalized_seen:
             normalized_seen.add("waiting_production")
-        used_direct = check.get("used_direct_production")
+        used_direct = check.get("used_direct_production") or check.get("used_deploy_to_direct")
         for group in CANONICAL_ORDER:
             if group not in normalized_seen:
                 if used_direct and group in DIRECT_PRODUCTION_SKIPPED_GROUPS:
@@ -328,7 +362,7 @@ def _developer_assignment_latency(
         created_at = created_by_id.get(card_id)
         if not created_at:
             continue
-        hours = duration_hours(created_at, change.at, workflow)
+        hours = duration_hours(created_at, change.at, workflow, person=change.new_value)
         values.append(hours)
         rows.append(
             {

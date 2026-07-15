@@ -21,7 +21,8 @@
     "acceptance_rate_pct": "Aceitacao sem retorno (%)",
     "rework_rate_pct": "Taxa de retrabalho (%)",
     "quality_rate_pct": "Taxa de qualidade (%)",
-    "peer_review_returns": "Retornos revisao em par",
+    "peer_review_returns": "Sugestoes aceitas (par)",
+    "suggestions_accepted": "Sugestoes aceitas",
     "tester_quality_returns": "Problemas pegos no teste",
     "return_dev_count": "Retornos DEV penalizados",
     "cards_with_rework": "Cards com retrabalho",
@@ -40,10 +41,14 @@
     "avg_wait_test_human": "Tempo medio aguardando teste",
     "avg_testing_human": "Tempo medio em teste",
     "reviews_done": "Revisoes feitas",
-    "approved": "Aprovadas",
-    "sent_back": "Devolvidas",
-    "escaped_to_test": "Escapes no teste",
+    "approved": "Sem escape",
+    "suggestion_rate_pct": "Taxa de sugestoes (%)",
+    "sent_back": "Sugestoes aceitas",
+    "escaped_to_test": "Escapes (revisao/teste)",
     "approval_rate_pct": "Taxa de aprovacao (%)",
+    "formal_reviews_done": "Revisoes formais",
+    "formal_review_passed": "Aprovadas na revisao",
+    "review_return_events": "Retornos na revisao",
     "avg_review_human": "Tempo medio de revisao",
     "top_developer": "Top desenvolvedor",
     "cards_active": "Cards ativos",
@@ -131,7 +136,12 @@
     "source_card_id": "ID card fonte",
     "source_card_name": "Nome card fonte",
     "reason": "Motivo do alerta",
-    "passed_terminal": "Fonte passou por terminal"
+    "passed_terminal": "Fonte passou por terminal",
+    "undue_test_returns": "Retornos indevidos de teste",
+    "undue_return_rate_pct": "Taxa de retornos indevidos (%)",
+    "undue_return_solutions": "Solucoes de retorno indevido",
+    "return_dev_by_teste_legitimate_count": "Retornos de teste legitimos",
+    "return_dev_by_teste_undue_count": "Retornos de teste indevidos"
   },
   "descriptions": {
     "name": "Nome do colaborador conforme campo customizado ou membro do quadro Trello.",
@@ -155,8 +165,9 @@
     "acceptance_rate_pct": "Percentual de entregas sem nenhum retorno DEV penalizado: aceitos / entregues x 100.",
     "rework_rate_pct": "Percentual de entregas com pelo menos um retorno DEV penalizado.",
     "quality_rate_pct": "Complemento do retrabalho: 100% - taxa de retrabalho.",
-    "peer_review_returns": "Quantidade de vezes que a revisao em par devolveu o card ao desenvolvedor.",
-    "tester_quality_returns": "Retornos ao DEV atribuidos a problemas encontrados na fase de teste.",
+    "peer_review_returns": "Sugestoes da revisao em par aceitas pelo dev (par -> andamento). Nao e penalidade.",
+    "suggestions_accepted": "Vezes em que o revisor em par pediu ajustes (par -> em andamento): garantia de qualidade.",
+    "tester_quality_returns": "Retornos ao DEV atribuidos a problemas encontrados na fase de teste (somente legitimos).",
     "return_dev_count": "Total de retornos DEV que contam como penalidade de qualidade.",
     "cards_with_rework": "Entregas com pelo menos um retorno DEV penalizado.",
     "peer_reviews_done": "Revisoes em par realizadas pelo desenvolvedor no periodo.",
@@ -164,18 +175,22 @@
     "double_review_mandatory_violations": "Cards obrigatorios entregues sem cumprir dupla revisao.",
     "cards_tested": "Cards tipo problema entregues que passaram pela fase de teste.",
     "approved_first_pass": "Cards testados aprovados sem retorno ao DEV na primeira passagem.",
-    "prevented_problems": "Retornos ao DEV por qualidade detectada na fase de teste (problemas evitados em producao).",
+    "prevented_problems": "Retornos ao DEV por qualidade detectada no teste com saida para EM ANDAMENTO (legitimos). Indevidos nao contam.",
     "returns_missing_reason": "Retornos de teste sem motivo registrado no card.",
     "retest_cycles_total": "Total de ciclos de reteste apos retorno ao DEV.",
     "tester_return_rate_pct": "Percentual de cards testados que tiveram retorno ao DEV.",
     "avg_wait_test_human": "Media de horas aguardando teste por card testado.",
     "avg_testing_human": "Media de horas em execucao de teste por card testado.",
     "reviews_done": "Revisoes em par concluidas no periodo.",
-    "approved": "Revisoes aprovadas sem devolucao nem escape para teste.",
-    "sent_back": "Revisoes que devolveram o card ao desenvolvedor.",
-    "escaped_to_test": "Revisoes aprovadas, mas com problema detectado depois no teste.",
-    "approval_rate_pct": "Percentual de revisoes aprovadas: aprovadas / revisoes x 100.",
-    "avg_review_human": "Media de horas gastas em revisao em par por revisao feita.",
+    "approved": "Revisoes sem escape posterior em revisao formal ou teste (sugestoes nao reduzem).",
+    "suggestion_rate_pct": "Percentual de revisoes com sugestao aceita: sugestoes / revisoes x 100.",
+    "sent_back": "Alias de sugestoes aceitas (compatibilidade).",
+    "escaped_to_test": "Problema encontrado depois da revisao em par, na revisao formal ou no teste legitimo (nunca retorno indevido).",
+    "approval_rate_pct": "Percentual de revisoes sem escape: aprovadas / revisoes x 100.",
+    "formal_reviews_done": "Revisoes formais concluidas no periodo.",
+    "formal_review_passed": "Revisoes formais aprovadas sem escape para teste.",
+    "review_return_events": "Retornos ao DEV atribuidos a revisao formal.",
+    "avg_review_human": "Media de horas gastas em revisao por revisao feita.",
     "top_developer": "Desenvolvedor com maior score no sistema (pontos x bonus de qualidade).",
     "cards_active": "Cards com movimentacao no periodo ainda nao entregues.",
     "requester_delivered": "Cards entregues no periodo em que a pessoa e solicitante.",
@@ -245,7 +260,9 @@
     "whitelisted_copies_count": "Copias ignoradas por serem template (PM CLIENTE / ANALISE) ou isTemplate.",
     "high_count": "Alertas high: fonte terminal ou excluida + destino planejamento/backlog.",
     "medium_count": "Alertas medium: mesma nome da fonte/entregue ou reinicio sem evidencia terminal.",
-    "score": "Nivel de suspeita do antifraude (high, medium, low)."
+    "score": "Nivel de suspeita do antifraude (high, medium, low).",
+    "undue_test_returns": "Episodios teste->RETORNO DEV com saida direta para AGUARDANDO TESTE (somente o tester e prejudicado).",
+    "undue_return_rate_pct": "Percentual de retornos indevidos sobre cards testados."
   },
   "tables": {
     "requesters": {
@@ -272,7 +289,7 @@
         "acceptance_rate_pct",
         "rework_rate_pct",
         "tester_quality_returns",
-        "peer_review_returns"
+        "suggestions_accepted"
       ]
     },
     "testers": {
@@ -282,17 +299,32 @@
         "cards_tested",
         "approved_first_pass",
         "prevented_problems",
+        "undue_test_returns",
+        "undue_return_rate_pct",
         "returns_missing_reason",
         "retest_cycles_total"
       ]
     },
     "reviewers": {
-      "description": "Revisoes em par realizadas no periodo, incluindo aprovacoes, devolucoes e escapes detectados no teste.",
+      "description": "Revisao em par: sugestoes aceitas mostram garantia de qualidade; so escapes em revisao formal/teste reduzem a taxa.",
       "columns": [
         "name",
         "reviews_done",
+        "suggestions_accepted",
+        "suggestion_rate_pct",
         "approved",
-        "sent_back",
+        "escaped_to_test",
+        "approval_rate_pct",
+        "avg_review_human"
+      ]
+    },
+    "formal_reviewers": {
+      "description": "Revisao formal: aprovacoes, retornos ao DEV e escapes detectados no teste.",
+      "columns": [
+        "name",
+        "formal_reviews_done",
+        "formal_review_passed",
+        "review_return_events",
         "escaped_to_test",
         "approval_rate_pct",
         "avg_review_human"
@@ -407,7 +439,7 @@
       ]
     },
     "antifraud": {
-      "description": "Detector de copias que podem resetar metricas. Templates sao whitelist. Alertas incluem lineage da fonte (viva, excluida ou missing_history).",
+      "description": "Detector de copias que podem resetar metricas. Templates sao whitelist. Alertas incluem lineage da fonte (viva, excluida, arquivada ou missing_history).",
       "columns": [
         "score",
         "card_name",
@@ -518,8 +550,8 @@
       ]
     },
     "dora": {
-      "title": "DORA — entrega e estabilidade",
-      "description": "Deploy produtivo = entrada em Em producao ou Diretamente na producao. CFR e proxy por card CORRECAO em 7 dias — nao mede falha real de pipeline.",
+      "title": "DORA — frequencia e lead time",
+      "description": "Deploy produtivo = entrada em Em producao ou Diretamente na producao. Lead time = Aguardando producao ate o deploy (direto usa o momento da entrada). CFR e time to restore nao sao calculados nesta versao.",
       "metrics": [
         {
           "key": "deployments_evaluated",
@@ -535,16 +567,6 @@
           "key": "direct_production",
           "formula": "Deploys pela coluna Diretamente na producao (hotfix, sem teste).",
           "example": "2 cards hotfix — contam no DORA mas nao exigem etapas de teste na conformidade."
-        },
-        {
-          "key": "failed_deployments",
-          "formula": "Deploy seguido de card CORRECAO do mesmo sistema em ate 7 dias (proxy).",
-          "example": "Deploy seguido de CORRECAO Critica em 3 dias => 1 falha proxy."
-        },
-        {
-          "key": "rate_pct",
-          "formula": "failed_deployments / deployments_evaluated x 100.",
-          "example": "2 falhas em 18 deploys => 11,1%."
         },
         {
           "key": "lead_time_deploy",
@@ -635,12 +657,12 @@
     },
     "direct_production": {
       "title": "Diretamente na producao",
-      "description": "Hotfix para master sem homolog/teste. Pode sair de Em andamento, Revisao em par ou Em revisao direto para Diretamente na producao. Conta como deploy DORA. Apos producao nao pode retornar — abrir novo card se problema persistir.",
+      "description": "Lista de controle para cards que nao passam pelo fluxo padrao de teste/aguardando producao. Valido: Em andamento/Revisao em par/Em revisao/Aguardando deploy -> Diretamente na producao. Violacao: Aguardando deploy -> Em producao (tem que usar Diretamente na producao). Conta como deploy DORA. Apos producao nao pode retornar — abrir novo card se problema persistir.",
       "metrics": [
         {
           "key": "direct_production",
-          "formula": "Entrada na lista Diretamente na producao a partir de Em andamento, Revisao em par ou Em revisao.",
-          "example": "Card em Revisao em par vai direto para master => +1 deploy direct, conforme."
+          "formula": "Entrada na lista Diretamente na producao (atalho sem teste). Deploy -> Em producao sem essa lista e violacao.",
+          "example": "Aguardando deploy -> Diretamente na producao => conforme. Aguardando deploy -> Em producao => violacao."
         },
         {
           "key": "post_terminal_return",
@@ -672,7 +694,7 @@
     },
     "antifraud": {
       "title": "Antifraude — copias e reset de metricas",
-      "description": "Ignora copias de template. Para demais, monta lineage da fonte (timeline viva ou actions/deleteCard). High = padrao de reinicio suspeito.",
+      "description": "Ignora copias de template. Para demais, monta lineage da fonte (timeline viva ou actions/deleteCard/updateCard:closed). High = padrao de reinicio suspeito.",
       "metrics": [
         {
           "key": "whitelisted_copies_count",
@@ -706,7 +728,7 @@
       "example": "3 analises concluidas no mes."
     },
     "approval_rate_pct": {
-      "formula": "Percentual de revisoes aprovadas: aprovadas / revisoes x 100.",
+      "formula": "Percentual de revisoes sem escape em revisao formal ou teste: aprovadas / revisoes x 100. Sugestoes (par -> andamento) nao reduzem.",
       "example": ""
     },
     "approved": {
@@ -886,7 +908,7 @@
       "example": ""
     },
     "escaped_to_test": {
-      "formula": "Revisoes aprovadas, mas com problema detectado depois no teste.",
+      "formula": "Problema encontrado depois da revisao em par, na revisao formal ou no teste (reduz a taxa).",
       "example": ""
     },
     "failed_deployments": {
@@ -974,7 +996,15 @@
       "example": ""
     },
     "peer_review_returns": {
-      "formula": "Quantidade de vezes que a revisao em par devolveu o card ao desenvolvedor.",
+      "formula": "Movimentos peer_review -> development. Conta como sugestao aceita (nao penaliza o dev).",
+      "example": "Revisor sugeriu ajuste e o card voltou para Em andamento => 1 sugestao aceita."
+    },
+    "suggestions_accepted": {
+      "formula": "Alias de peer_review_returns no perfil do revisor/dev: movimentos par -> andamento (colaboracao, nao penalidade).",
+      "example": "3 sugestoes em 11 revisoes => 27.3% de taxa de sugestoes."
+    },
+    "suggestion_rate_pct": {
+      "formula": "sugestoes aceitas / revisoes feitas x 100.",
       "example": ""
     },
     "peer_reviews_done": {
@@ -1002,8 +1032,8 @@
       "example": "Card em producao voltou para RETORNO DEV => processo incorreto."
     },
     "prevented_problems": {
-      "formula": "Retornos ao DEV por qualidade detectada na fase de teste (problemas evitados em producao).",
-      "example": ""
+      "formula": "Retornos ao DEV por qualidade no teste com saida para EM ANDAMENTO (legitimos). Indevidos nao contam.",
+      "example": "Tester devolveu e o card foi para EM ANDAMENTO => problema evitado."
     },
     "prioridade": {
       "formula": "Prioridade informada no card (Urgente, Critica, Alta, etc.).",
@@ -1066,7 +1096,19 @@
       "example": ""
     },
     "sent_back": {
-      "formula": "Revisoes que devolveram o card ao desenvolvedor.",
+      "formula": "Alias de sugestoes aceitas: cards que voltaram de revisao em par para desenvolvimento.",
+      "example": ""
+    },
+    "formal_reviews_done": {
+      "formula": "Cards entregues no periodo com revisor formal informado.",
+      "example": ""
+    },
+    "formal_review_passed": {
+      "formula": "Revisoes formais sem escape posterior para teste.",
+      "example": ""
+    },
+    "review_return_events": {
+      "formula": "Retornos ao DEV atribuidos a fase de revisao formal.",
       "example": ""
     },
     "sistema": {
@@ -1168,6 +1210,50 @@
     "medium_count": {
       "formula": "Alertas com score=medium (mesmo nome ou destino restart sem terminal).",
       "example": "Copia nao-template com mesmo nome da fonte => medium."
+    },
+    "aging_baseline": {
+      "formula": "Percentis p50/p85/p95 das horas fechadas por etapa nos ultimos 12 meses.",
+      "example": "Development p85=12h => 85% dos spans fecham em ate 12h uteis."
+    },
+    "first_time_right": {
+      "formula": "% de cards que passam no gate (peer/teste) sem devolucao.",
+      "example": "10 passaram teste, 7 sem retorno de tester => FTR teste=70%."
+    },
+    "rework_ratio": {
+      "formula": "100 * horas em retorno_dev / flow_hours ate entrega (ponderado no time).",
+      "example": "20h de retorno em 100h de fluxo => 20%."
+    },
+    "net_flow": {
+      "formula": "Por semana: criados - entregues; alerta se media movel 4 semanas > 0.",
+      "example": "8 criados e 5 entregues => net=+3 (WIP sobe)."
+    },
+    "flow_efficiency_distribution": {
+      "formula": "Distribuicao da eficiencia touch/total por card entregue + piores cards.",
+      "example": ""
+    },
+    "blocked_time": {
+      "formula": "100 * horas em pausa+retorno_sup / flow_hours; serie semanal local.",
+      "example": ""
+    },
+    "member_assignment": {
+      "formula": "Latencia ate addMemberToCard e % inconsistencia Desenvolvedor vs membros.",
+      "example": ""
+    },
+    "due_predictability": {
+      "formula": "% entregues no due vigente + taxa de replanejamento de due.",
+      "example": ""
+    },
+    "board_moves": {
+      "formula": "Cards que entraram/sairam do board no periodo (moveCardTo/FromBoard).",
+      "example": ""
+    },
+    "undue_test_returns": {
+      "formula": "Contagem de episodios teste/waiting_test -> RETORNO DEV com saida direta para waiting_test/testing.",
+      "example": "Tester devolveu e o card voltou a AGUARDANDO TESTE sem passar por EM ANDAMENTO => indevido."
+    },
+    "undue_return_rate_pct": {
+      "formula": "100 * undue_test_returns / cards_tested.",
+      "example": "2 indevidos em 10 cards testados => 20%."
     }
   }
 }

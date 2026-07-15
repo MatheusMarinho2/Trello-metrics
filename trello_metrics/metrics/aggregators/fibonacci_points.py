@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from trello_metrics.domain.workflow import WorkflowConfig
 from trello_metrics.metrics.timeline import CardTimeline
 from trello_metrics.utils.period import MonthPeriod
 
@@ -41,6 +42,7 @@ class DevPointsAccumulator:
 def aggregate_fibonacci_points(
     timelines: list[CardTimeline],
     period: MonthPeriod,
+    workflow: WorkflowConfig | None = None,
 ) -> dict[str, Any]:
     """Pontos Fibonacci creditados exclusivamente ao desenvolvedor do card entregue."""
     by_dev: dict[str, DevPointsAccumulator] = {}
@@ -54,6 +56,8 @@ def aggregate_fibonacci_points(
             continue
         dev = timeline.desenvolvedor
         if dev == "Nao informado" or not dev.startswith("D-"):
+            continue
+        if workflow is not None and workflow.should_ignore_person(dev):
             continue
         if dev not in by_dev:
             by_dev[dev] = DevPointsAccumulator(name=dev)

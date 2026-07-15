@@ -5,19 +5,12 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
+from trello_metrics.metrics.aggregators.common import percentile
 from trello_metrics.domain.models import TrelloCard
 from trello_metrics.domain.workflow import WorkflowConfig
 from trello_metrics.metrics.timeline import CardTimeline
 from trello_metrics.utils.dates import human_hours
 from trello_metrics.utils.period import MonthPeriod
-
-
-def _percentile(values: list[float], pct: float) -> float:
-    if not values:
-        return 0.0
-    ordered = sorted(values)
-    index = int(round((pct / 100) * (len(ordered) - 1)))
-    return round(ordered[index], 2)
 
 
 def aggregate_bottlenecks(
@@ -43,7 +36,7 @@ def aggregate_bottlenecks(
         values = group_values[group]
         avg = round(statistics.mean(values), 2) if values else 0.0
         median = round(statistics.median(values), 2) if values else 0.0
-        p95 = _percentile(values, 95)
+        p95 = percentile(values, 95) or 0.0
         rows.append(
             {
                 "group": group,

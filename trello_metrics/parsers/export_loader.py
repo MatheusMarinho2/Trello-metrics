@@ -7,7 +7,10 @@ from typing import Any
 from trello_metrics.config import load_json
 from trello_metrics.domain.models import (
     BoardData,
+    BoardMoveEvent,
     CustomFieldChange,
+    DueChangeEvent,
+    MemberEvent,
     MovementEvent,
     TrelloCard,
     TrelloList,
@@ -29,13 +32,28 @@ def parse_board_export(payload: dict[str, Any]) -> BoardData:
         for item in payload.get("labels", [])
         if item.get("id")
     }
+    members_by_id = {
+        item.get("id"): clean_spaces(item.get("fullName") or item.get("username"))
+        for item in payload.get("members", [])
+        if item.get("id")
+    }
     custom_field_names, custom_field_options = _build_custom_field_indexes(
         payload.get("customFields", [])
     )
     create_dates = _create_dates_by_card(payload.get("actions", []))
+    checklists_by_card = _checklists_by_card(payload.get("checklists", []))
 
     cards = [
-        _parse_card(card, lists, labels_by_id, custom_field_names, custom_field_options, create_dates)
+        _parse_card(
+            card,
+            lists,
+            labels_by_id,
+            custom_field_names,
+            custom_field_options,
+            create_dates,
+            members_by_id,
+            checklists_by_card,
+        )
         for card in payload.get("cards", [])
     ]
     actions = payload.get("actions", [])
@@ -45,6 +63,21 @@ def parse_board_export(payload: dict[str, Any]) -> BoardData:
         custom_field_names,
         custom_field_options,
     )
+    member_events = _parse_member_events(actions, members_by_id)
+    due_changes = _parse_due_changes(actions)
+    board_move_events = _parse_board_move_events(actions)
+    for event in board_move_events:
+        if event.direction != "out":
+            continue
+        movements.append(
+            MovementEvent(
+                card_id=event.card_id,
+                card_name="",
+                at=event.at,
+                event_type="archived",
+            )
+        )
+    movements = sorted(movements, key=lambda item: item.at)
 
     return BoardData(
         id=payload.get("id", ""),
@@ -54,6 +87,9 @@ def parse_board_export(payload: dict[str, Any]) -> BoardData:
         cards=cards,
         movements=movements,
         custom_field_changes=custom_field_changes,
+        member_events=member_events,
+        due_changes=due_changes,
+        board_move_events=board_move_events,
         raw=payload,
     )
 
@@ -110,6 +146,8 @@ def _parse_card(
     field_names: dict[str, str],
     field_options: dict[tuple[str, str], str],
     create_dates: dict[str, Any],
+    members_by_id: dict[str, str],
+    checklists_by_card: dict[str, list[dict[str, Any]]],
 ) -> TrelloCard:
     list_id = raw.get("idList")
     current_list = lists.get(list_id or "")
@@ -123,6 +161,11 @@ def _parse_card(
         if label_name and label_name not in label_names:
             label_names.append(label_name)
 
+    member_ids = [str(mid) for mid in (raw.get("idMembers") or []) if mid]
+    member_names = [
+        members_by_id.get(mid) or mid for mid in member_ids if members_by_id.get(mid) or mid
+    ]
+    desc = raw.get("desc") or ""
     card_id = raw.get("id", "")
     return TrelloCard(
         id=card_id,
@@ -138,9 +181,38 @@ def _parse_card(
         id_short=raw.get("idShort"),
         labels=label_names,
         custom_fields=_parse_custom_field_items(raw, field_names, field_options),
-        description_data=parse_card_description(raw.get("desc")),
+        description_data=parse_card_description(desc),
         raw=raw,
+        member_ids=member_ids,
+        member_names=member_names,
+        due=parse_trello_datetime(raw.get("due")),
+        start=parse_trello_datetime(raw.get("start")),
+        checklists=checklists_by_card.get(card_id, []),
+        desc_length=len(clean_spaces(desc)),
     )
+
+
+def _checklists_by_card(raw_checklists: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    by_card: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for checklist in raw_checklists or []:
+        card_id = checklist.get("idCard")
+        if not card_id:
+            continue
+        items = []
+        for item in checklist.get("checkItems") or []:
+            items.append(
+                {
+                    "name": clean_spaces(item.get("name")),
+                    "state": item.get("state") or "incomplete",
+                }
+            )
+        by_card[card_id].append(
+            {
+                "name": clean_spaces(checklist.get("name")),
+                "items": items,
+            }
+        )
+    return by_card
 
 
 def _parse_custom_field_items(
@@ -193,6 +265,19 @@ def _parse_movements(
             continue
 
         if action_type == "createCard":
+            target = _list_from_action_ref(data.get("list"), lists)
+            movements.append(
+                _movement_from_action(
+                    action,
+                    event_type="created",
+                    at=action_at,
+                    card=card,
+                    to_list=target,
+                )
+            )
+            continue
+
+        if action_type == "convertToCardFromCheckItem":
             target = _list_from_action_ref(data.get("list"), lists)
             movements.append(
                 _movement_from_action(
@@ -341,6 +426,92 @@ def _custom_field_change_value(
             return option
     value = _value_from_custom_field_item(item)
     return value or None
+
+
+def _parse_member_events(
+    actions: list[dict[str, Any]],
+    members_by_id: dict[str, str],
+) -> list[MemberEvent]:
+    events: list[MemberEvent] = []
+    for action in actions:
+        action_type = action.get("type")
+        if action_type not in {"addMemberToCard", "removeMemberFromCard"}:
+            continue
+        data = action.get("data") or {}
+        card_id = (data.get("card") or {}).get("id")
+        at = parse_trello_datetime(action.get("date"))
+        member = data.get("member") or {}
+        member_id = member.get("id") or ""
+        member_name = clean_spaces(member.get("name")) or members_by_id.get(member_id, "")
+        if not card_id or not at:
+            continue
+        member_creator = action.get("memberCreator") or {}
+        events.append(
+            MemberEvent(
+                card_id=card_id,
+                at=at,
+                member_id=member_id,
+                member_name=member_name,
+                op="add" if action_type == "addMemberToCard" else "remove",
+                actor_id=member_creator.get("id"),
+                actor_name=clean_spaces(member_creator.get("fullName")),
+            )
+        )
+    return sorted(events, key=lambda item: item.at)
+
+
+def _parse_due_changes(actions: list[dict[str, Any]]) -> list[DueChangeEvent]:
+    events: list[DueChangeEvent] = []
+    for action in actions:
+        if action.get("type") != "updateCard":
+            continue
+        data = action.get("data") or {}
+        old = data.get("old") or {}
+        if "due" not in old and "due" not in (data.get("card") or {}):
+            continue
+        if "due" not in old:
+            continue
+        card = data.get("card") or {}
+        card_id = card.get("id")
+        at = parse_trello_datetime(action.get("date"))
+        if not card_id or not at:
+            continue
+        member_creator = action.get("memberCreator") or {}
+        events.append(
+            DueChangeEvent(
+                card_id=card_id,
+                at=at,
+                old_due=parse_trello_datetime(old.get("due")),
+                new_due=parse_trello_datetime(card.get("due")),
+                actor_id=member_creator.get("id"),
+                actor_name=clean_spaces(member_creator.get("fullName")),
+            )
+        )
+    return sorted(events, key=lambda item: item.at)
+
+
+def _parse_board_move_events(actions: list[dict[str, Any]]) -> list[BoardMoveEvent]:
+    events: list[BoardMoveEvent] = []
+    for action in actions:
+        action_type = action.get("type")
+        if action_type not in {"moveCardToBoard", "moveCardFromBoard"}:
+            continue
+        data = action.get("data") or {}
+        card_id = (data.get("card") or {}).get("id")
+        at = parse_trello_datetime(action.get("date"))
+        if not card_id or not at:
+            continue
+        board = data.get("board") or data.get("boardTarget") or data.get("boardSource") or {}
+        events.append(
+            BoardMoveEvent(
+                card_id=card_id,
+                at=at,
+                direction="in" if action_type == "moveCardToBoard" else "out",
+                other_board_id=board.get("id") or "",
+                other_board_name=clean_spaces(board.get("name")),
+            )
+        )
+    return sorted(events, key=lambda item: item.at)
 
 
 def _is_list_movement(data: dict[str, Any]) -> bool:

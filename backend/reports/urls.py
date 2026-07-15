@@ -3,6 +3,12 @@ from __future__ import annotations
 from django.urls import path
 
 from reports.controllers.auth_controller import LoginView, MeView
+from reports.controllers.calendar_controller import (
+    CalendarExceptionDetailView,
+    CalendarExceptionListCreateView,
+    OvertimeDetailView,
+    OvertimeListCreateView,
+)
 from reports.controllers.report_controller import (
     CollaboratorDetailView,
     CollaboratorListCreateView,
@@ -30,4 +36,8 @@ urlpatterns = [
     path("collaborators/", CollaboratorListCreateView.as_view(), name="collaborator-list"),
     path("collaborators/sync/", CollaboratorSyncView.as_view(), name="collaborator-sync"),
     path("collaborators/<int:pk>/", CollaboratorDetailView.as_view(), name="collaborator-detail"),
+    path("calendar/exceptions/", CalendarExceptionListCreateView.as_view(), name="calendar-exceptions"),
+    path("calendar/exceptions/<int:pk>/", CalendarExceptionDetailView.as_view(), name="calendar-exception-detail"),
+    path("calendar/overtime/", OvertimeListCreateView.as_view(), name="calendar-overtime"),
+    path("calendar/overtime/<int:pk>/", OvertimeDetailView.as_view(), name="calendar-overtime-detail"),
 ]

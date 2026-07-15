@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
+from trello_metrics.domain.workflow import WorkflowConfig
 from trello_metrics.metrics.timeline import CardTimeline
 from trello_metrics.utils.dates import human_hours, isoformat
 from trello_metrics.utils.period import MonthPeriod
@@ -46,6 +47,10 @@ def _card_entry(timeline: CardTimeline) -> dict[str, Any]:
         "double_review_done": timeline.double_review_done,
         "double_review_violation": timeline.double_review_violation,
         "return_dev_by_teste_count": timeline.return_dev_by_teste_count,
+        "return_dev_by_teste_legitimate_count": timeline.return_dev_by_teste_legitimate_count,
+        "return_dev_by_teste_undue_count": timeline.return_dev_by_teste_undue_count,
+        "tester_undue_returns": timeline.tester_undue_returns,
+        "undue_return_solutions": list(timeline.undue_return_solutions),
         "return_dev_by_revisao_count": timeline.return_dev_by_revisao_count,
         "test_return_missing_reason_count": timeline.test_return_missing_reason_count,
         "test_cycles": timeline.test_cycles,
@@ -72,6 +77,7 @@ def _card_entry(timeline: CardTimeline) -> dict[str, Any]:
 def aggregate_card_dossier(
     timelines: list[CardTimeline],
     period: MonthPeriod,
+    workflow: WorkflowConfig | None = None,
 ) -> dict[str, Any]:
     """Monta um dossie descritivo por card, agrupado por desenvolvedor
     (separando tarefas normais de cards de analise), por solicitante e por
@@ -88,14 +94,20 @@ def aggregate_card_dossier(
     for timeline in active:
         entry = _card_entry(timeline)
 
-        if timeline.desenvolvedor != "Nao informado":
+        if timeline.desenvolvedor != "Nao informado" and not (
+            workflow is not None and workflow.should_ignore_person(timeline.desenvolvedor)
+        ):
             bucket = "cards_analise" if timeline.kind == "analysis" else "tarefas_normais"
             by_developer[timeline.desenvolvedor][bucket].append(entry)
 
-        if timeline.solicitante != "Nao informado":
+        if timeline.solicitante != "Nao informado" and not (
+            workflow is not None and workflow.should_ignore_person(timeline.solicitante)
+        ):
             by_solicitante[timeline.solicitante].append(entry)
 
-        if timeline.tester != "Nao informado":
+        if timeline.tester != "Nao informado" and not (
+            workflow is not None and workflow.should_ignore_person(timeline.tester)
+        ):
             by_tester[timeline.tester].append(entry)
 
     def _sort(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

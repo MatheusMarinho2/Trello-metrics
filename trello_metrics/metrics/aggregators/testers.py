@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from trello_metrics.domain.workflow import WorkflowConfig
 from trello_metrics.metrics.timeline import CardTimeline
 from trello_metrics.utils.dates import human_hours
 from trello_metrics.utils.period import MonthPeriod
@@ -14,6 +15,7 @@ class TesterAccumulator:
     cards_tested: int = 0
     approved_first_pass: int = 0
     prevented_problems: int = 0
+    undue_test_returns: int = 0
     returns_missing_reason: int = 0
     retest_cycles_total: int = 0
     wait_test_hours_total: float = 0.0
@@ -22,6 +24,11 @@ class TesterAccumulator:
     def to_dict(self) -> dict[str, Any]:
         avg_wait = self.wait_test_hours_total / self.cards_tested if self.cards_tested else 0.0
         avg_test = self.testing_hours_total / self.cards_tested if self.cards_tested else 0.0
+        undue_rate = (
+            round(100 * self.undue_test_returns / self.cards_tested, 1)
+            if self.cards_tested
+            else 0.0
+        )
         return {
             "name": self.name,
             "cards_tested": self.cards_tested,
@@ -29,6 +36,8 @@ class TesterAccumulator:
             "approved_first_pass": self.approved_first_pass,
             "prevented_problems": self.prevented_problems,
             "returned_dev_for_quality": self.prevented_problems,
+            "undue_test_returns": self.undue_test_returns,
+            "undue_return_rate_pct": undue_rate,
             "returns_missing_reason": self.returns_missing_reason,
             "retest_cycles_total": self.retest_cycles_total,
             "tester_return_rate_pct": 0.0,
@@ -43,6 +52,7 @@ class TesterAccumulator:
 def aggregate_testers(
     timelines: list[CardTimeline],
     period: MonthPeriod,
+    workflow: WorkflowConfig | None = None,
 ) -> list[dict[str, Any]]:
     accumulators: dict[str, TesterAccumulator] = {}
     cards_with_tester_return: dict[str, int] = {}
@@ -56,6 +66,8 @@ def aggregate_testers(
             continue
         if not timeline.passed_test_phase:
             continue
+        if workflow is not None and workflow.should_ignore_person(timeline.tester):
+            continue
 
         tester = timeline.tester
         if tester not in accumulators:
@@ -66,7 +78,8 @@ def aggregate_testers(
         acc.cards_tested += 1
         acc.wait_test_hours_total += timeline.group_hours.get("waiting_test", 0.0)
         acc.testing_hours_total += timeline.group_hours.get("testing", 0.0)
-        acc.prevented_problems += timeline.return_dev_by_teste_count
+        acc.prevented_problems += timeline.return_dev_by_teste_legitimate_count
+        acc.undue_test_returns += timeline.tester_undue_returns
         acc.returns_missing_reason += timeline.test_return_missing_reason_count
         acc.retest_cycles_total += timeline.retest_cycles
 

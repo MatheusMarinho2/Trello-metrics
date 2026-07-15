@@ -79,7 +79,8 @@ export const SLA_ALERTS_TABLE_TITLE = "Cards com alerta de SLA";
 export const SECTION_TABLE_IDS: Record<string, string> = {
   Colaboradores: "collaborators",
   Desenvolvedores: "developers",
-  Revisores: "reviewers",
+  "Revisao em par": "reviewers",
+  Revisores: "formal_reviewers",
   Testers: "testers",
   Solicitantes: "requesters",
   "Alertas antifraude": "antifraud",

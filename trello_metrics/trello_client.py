@@ -2,9 +2,19 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Any
+from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+
+DEFAULT_ACTION_FILTER = (
+    "createCard,updateCard:idList,updateCard:closed,updateCard:due,"
+    "copyCard,deleteCard,updateCustomFieldItem,"
+    "addMemberToCard,removeMemberFromCard,"
+    "convertToCardFromCheckItem,moveCardToBoard,moveCardFromBoard"
+)
 
 
 class TrelloClient:
@@ -22,7 +32,7 @@ class TrelloClient:
     def fetch_board_export(
         self,
         board_id: str,
-        action_filter: str = "createCard,updateCard:idList,updateCard:closed,copyCard,deleteCard,updateCustomFieldItem",
+        action_filter: str = DEFAULT_ACTION_FILTER,
     ) -> dict[str, Any]:
         board = self._get(
             f"/boards/{board_id}",
@@ -60,8 +70,6 @@ class TrelloClient:
             if not page:
                 break
             actions.extend(page)
-            if len(page) < limit:
-                break
             before = page[-1]["id"]
         return actions
 
@@ -74,6 +82,23 @@ class TrelloClient:
             query.update(params)
         url = f"{self.base_url}{path}?{urlencode(query)}"
         request = Request(url, headers={"Accept": "application/json"})
-        with urlopen(request, timeout=60) as response:
-            charset = response.headers.get_content_charset() or "utf-8"
-            return json.loads(response.read().decode(charset))
+        delays = (0.5, 1.5, 3.0)
+        last_error: Exception | None = None
+        for attempt, delay in enumerate((*delays, None)):
+            try:
+                with urlopen(request, timeout=60) as response:
+                    charset = response.headers.get_content_charset() or "utf-8"
+                    return json.loads(response.read().decode(charset))
+            except HTTPError as exc:
+                last_error = exc
+                if exc.code not in {429, 500, 502, 503, 504} or delay is None:
+                    raise
+                time.sleep(delay)
+            except Exception as exc:  # noqa: BLE001 — retry de rede transitória
+                last_error = exc
+                if delay is None:
+                    raise
+                time.sleep(delay)
+        if last_error:
+            raise last_error
+        raise RuntimeError(f"Falha ao chamar Trello: {path}")

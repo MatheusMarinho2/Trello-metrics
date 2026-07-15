@@ -15,17 +15,22 @@ METRIC_KEY_BUNDLES: dict[str, set[str]] = {
     "bottlenecks": {"bottlenecks"},
     "card_dossier": {"card_dossier"},
     "priority": {"priority"},
-    "dora": {"dora"},
     "quality_gates": {"quality_gates"},
     "discipline": {"process_discipline"},
     "analysis_workflow": {"analysis_workflow"},
     "fibonacci": {"fibonacci_points"},
     "collaborators": {"collaborators"},
     "reviewers": {"reviewers"},
+    "formal_reviewers": {"formal_reviewers"},
     "projects": {"projects"},
     "risk": {"risk_board"},
     "trends": {"trends_6m"},
     "antifraud": {"antifraud"},
+    "dora": {"dora"},
+    "first_time_right": {"first_time_right"},
+    "member_assignment": {"member_assignment"},
+    "due_predictability": {"due_predictability"},
+    "board_moves": {"board_moves"},
 }
 
 REPORT_TYPE_PRESETS: dict[str, set[str] | None] = {
@@ -48,6 +53,10 @@ REPORT_TYPE_PRESETS: dict[str, set[str] | None] = {
         "trends_6m",
         "antifraud",
         "card_dossier",
+        "first_time_right",
+        "member_assignment",
+        "due_predictability",
+        "board_moves",
     },
     "developers": {
         "board",
@@ -78,6 +87,22 @@ REPORT_TYPE_PRESETS: dict[str, set[str] | None] = {
         "quality_gates",
         "card_dossier",
     },
+    "reviewers": {
+        "board",
+        "period",
+        "overview",
+        "reviewers",
+        "quality_gates",
+        "card_dossier",
+    },
+    "formal_reviewers": {
+        "board",
+        "period",
+        "overview",
+        "formal_reviewers",
+        "quality_gates",
+        "card_dossier",
+    },
     "individual": {
         "board",
         "period",
@@ -91,6 +116,8 @@ ROLE_REPORT_SCOPES = {
     "developers": "developers",
     "requesters": "requesters",
     "testers": "testers",
+    "reviewers": "reviewers",
+    "formal_reviewers": "formal_reviewers",
 }
 
 
@@ -235,6 +262,34 @@ def _build_role_summary(
             "cards_delivered": delivered,
             "in_production": in_production,
             "gestor_premature_approvals": gestor_premature,
+        }
+    if scope == "reviewers":
+        reviews = sum(int(row.get("reviews_done", 0)) for row in rows)
+        suggestions = sum(int(row.get("suggestions_accepted", row.get("sent_back", 0))) for row in rows)
+        approved = sum(int(row.get("approved", 0)) for row in rows)
+        escapes = sum(int(row.get("escaped_to_test", 0)) for row in rows)
+        return {
+            "scope": scope,
+            "people_count": people_count,
+            "reviews_done": reviews,
+            "suggestions_accepted": suggestions,
+            "approved": approved,
+            "escaped_to_test": escapes,
+            "approval_rate_pct": round(100 * approved / reviews, 1) if reviews else 0.0,
+        }
+    if scope == "formal_reviewers":
+        reviews = sum(int(row.get("formal_reviews_done", 0)) for row in rows)
+        passed = sum(int(row.get("formal_review_passed", 0)) for row in rows)
+        returns = sum(int(row.get("review_return_events", 0)) for row in rows)
+        escapes = sum(int(row.get("escaped_to_test", 0)) for row in rows)
+        return {
+            "scope": scope,
+            "people_count": people_count,
+            "formal_reviews_done": reviews,
+            "formal_review_passed": passed,
+            "review_return_events": returns,
+            "escaped_to_test": escapes,
+            "approval_rate_pct": round(100 * passed / reviews, 1) if reviews else 0.0,
         }
     team = full_metrics.get("team_summary") or {}
     return {"scope": scope, "people_count": people_count, **team}

@@ -10,7 +10,7 @@ from reports.dataclasses.report_config import (
     ReportGenerationConfig,
     TrelloSourceConfig,
 )
-from reports.models import Collaborator, GeneratedReport
+from reports.models import Collaborator, GeneratedReport, OvertimeEntry, WorkCalendarException
 from reports.services.ai_models import (
     DEFAULT_MAX_OUTPUT_TOKENS,
     MAX_OUTPUT_TOKENS_LIMIT,
@@ -250,3 +250,54 @@ class CollaboratorSerializer(serializers.ModelSerializer):
     def create(self, validated_data: dict[str, Any]) -> Collaborator:
         validated_data.setdefault("source", "manual")
         return super().create(validated_data)
+
+
+class WorkCalendarExceptionSerializer(serializers.ModelSerializer):
+    collaborator_ids = serializers.PrimaryKeyRelatedField(
+        source="collaborators",
+        many=True,
+        queryset=Collaborator.objects.all(),
+        required=False,
+    )
+    collaborator_names = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WorkCalendarException
+        fields = (
+            "id",
+            "date",
+            "kind",
+            "start_time",
+            "end_time",
+            "scope",
+            "collaborator_ids",
+            "collaborator_names",
+            "note",
+            "active",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("id", "collaborator_names", "created_at", "updated_at")
+
+    def get_collaborator_names(self, obj: WorkCalendarException) -> list[str]:
+        return list(obj.collaborators.values_list("name", flat=True))
+
+
+class OvertimeEntrySerializer(serializers.ModelSerializer):
+    collaborator_name = serializers.CharField(source="collaborator.name", read_only=True)
+
+    class Meta:
+        model = OvertimeEntry
+        fields = (
+            "id",
+            "collaborator",
+            "collaborator_name",
+            "date",
+            "start_time",
+            "end_time",
+            "note",
+            "active",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("id", "collaborator_name", "created_at", "updated_at")

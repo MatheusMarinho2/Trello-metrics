@@ -136,6 +136,50 @@ export async function syncCollaboratorsFromTrello(
   });
 }
 
+export async function listCalendarExceptions(
+  token: string,
+  month?: string,
+): Promise<import("../types/calendar").WorkCalendarException[]> {
+  const query = month ? `?month=${encodeURIComponent(month)}` : "";
+  return apiFetch(`/calendar/exceptions/${query}`, token);
+}
+
+export async function createCalendarException(
+  token: string,
+  payload: import("../types/calendar").CalendarExceptionPayload,
+): Promise<import("../types/calendar").WorkCalendarException> {
+  return apiFetch("/calendar/exceptions/", token, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteCalendarException(token: string, id: number): Promise<void> {
+  await apiFetch(`/calendar/exceptions/${id}/`, token, { method: "DELETE" });
+}
+
+export async function listOvertimeEntries(
+  token: string,
+  month?: string,
+): Promise<import("../types/calendar").OvertimeEntry[]> {
+  const query = month ? `?month=${encodeURIComponent(month)}` : "";
+  return apiFetch(`/calendar/overtime/${query}`, token);
+}
+
+export async function createOvertimeEntry(
+  token: string,
+  payload: import("../types/calendar").OvertimePayload,
+): Promise<import("../types/calendar").OvertimeEntry> {
+  return apiFetch("/calendar/overtime/", token, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteOvertimeEntry(token: string, id: number): Promise<void> {
+  await apiFetch(`/calendar/overtime/${id}/`, token, { method: "DELETE" });
+}
+
 async function apiFetch<T>(
   path: string,
   token: string,

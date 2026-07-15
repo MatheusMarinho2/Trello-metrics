@@ -29,9 +29,11 @@ class RetornoHistoryEntry:
     solucao: str
     at: datetime | None
     atribuido_a: str | None = None
+    kind: str | None = None  # undue | legitimate | None
+    is_undue_test_return: bool = False
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "numero": self.numero,
             "tipo": self.tipo,
             "subtipo": self.subtipo,
@@ -39,6 +41,30 @@ class RetornoHistoryEntry:
             "solucao": self.solucao,
             "at": isoformat(self.at),
             "atribuido_a": self.atribuido_a,
+            "kind": self.kind,
+            "is_undue_test_return": self.is_undue_test_return,
+        }
+        if self.is_undue_test_return:
+            payload["solucao_label"] = "Solução de retorno indevido"
+            payload["identificacao"] = "solução de retorno indevido"
+        return payload
+
+
+@dataclass
+class TestReturnEpisode:
+    at: datetime
+    kind: str  # undue | legitimate | open | other
+    source_group: str | None
+    exit_group: str | None
+    hours: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "at": isoformat(self.at),
+            "kind": self.kind,
+            "source_group": self.source_group,
+            "exit_group": self.exit_group,
+            "hours": round(self.hours, 2),
         }
 
 
@@ -88,8 +114,11 @@ class CardTimeline:
     return_dev_count: int = 0
     return_sup_count: int = 0
     pause_count: int = 0
+    returns_before_delivery: int = 0
     accepted_without_dev_return: bool = True
     peer_review_sent_back: bool = False
+    is_open: bool = True
+    archived_at: datetime | None = None
     transitions: list[tuple[str, str]] = field(default_factory=list)
     retornos: list[RetornoDetail] = field(default_factory=list)
     pausas: list[PausaDetail] = field(default_factory=list)
@@ -99,6 +128,12 @@ class CardTimeline:
     double_review_required: bool = False
     double_review_recommended: bool = False
     return_dev_by_teste_count: int = 0
+    return_dev_by_teste_legitimate_count: int = 0
+    return_dev_by_teste_undue_count: int = 0
+    tester_undue_returns: int = 0
+    undue_return_hours: float = 0.0
+    test_return_episodes: list[TestReturnEpisode] = field(default_factory=list)
+    undue_return_solutions: list[dict[str, Any]] = field(default_factory=list)
     return_dev_by_revisao_count: int = 0
     gestor_premature_approval: bool = False
     dev_to_sup_return_count: int = 0
@@ -202,7 +237,10 @@ class CardTimeline:
             "gestor_premature_approval": self.gestor_premature_approval,
             "dev_to_sup_return_count": self.dev_to_sup_return_count,
             "accepted_without_dev_return": self.accepted_without_dev_return,
+            "returns_before_delivery": self.returns_before_delivery,
             "peer_review_sent_back": self.peer_review_sent_back,
+            "is_open": self.is_open,
+            "archived_at": isoformat(self.archived_at),
             "lead_time_hours": self.lead_time_hours,
             "closed_at": isoformat(self.closed_at),
             "pause_count": self.pause_count,
@@ -213,6 +251,12 @@ class CardTimeline:
             "double_review_done": self.double_review_done,
             "double_review_violation": self.double_review_violation,
             "return_dev_by_teste_count": self.return_dev_by_teste_count,
+            "return_dev_by_teste_legitimate_count": self.return_dev_by_teste_legitimate_count,
+            "return_dev_by_teste_undue_count": self.return_dev_by_teste_undue_count,
+            "tester_undue_returns": self.tester_undue_returns,
+            "undue_return_hours": round(self.undue_return_hours, 2),
+            "undue_return_solutions": list(self.undue_return_solutions),
+            "test_return_episodes": [item.to_dict() for item in self.test_return_episodes],
             "return_dev_by_revisao_count": self.return_dev_by_revisao_count,
             "developer_penalty_return_count": self.developer_penalty_return_count,
             "test_return_missing_reason_count": self.test_return_missing_reason_count,
@@ -248,6 +292,26 @@ def build_card_timelines(
 
 
 def _build_one(
+    card: TrelloCard,
+    kind: str,
+    events: list[MovementEvent],
+    workflow: WorkflowConfig,
+    now: datetime,
+) -> CardTimeline:
+    previous_person = getattr(workflow, "duration_person", None)
+    workflow.duration_person = (
+        _field(card, "Desenvolvedor")
+        or _field(card, "Tester")
+        or _field(card, "Solicitante")
+        or None
+    )
+    try:
+        return _build_one_inner(card, kind, events, workflow, now)
+    finally:
+        workflow.duration_person = previous_person
+
+
+def _build_one_inner(
     card: TrelloCard,
     kind: str,
     events: list[MovementEvent],
@@ -330,20 +394,23 @@ def _build_one(
 
     timeline.gestor_premature_approval = _detect_gestor_premature_approval(timeline.transitions)
 
+    archived_at = _first_event_at(ordered, "archived")
+    timeline.archived_at = archived_at
+    timeline.closed_at = card.date_closed or archived_at
+    timeline.is_open = timeline.delivered_at is None and timeline.closed_at is None
+    lead_end = timeline.delivered_at or timeline.closed_at or now
+    timeline.lead_time_hours = duration_hours(card.created_at, lead_end, workflow)
+    # Cycle time oficial = metric_cycle_hours (flow_start → delivered), definido em _apply_flow_metrics.
+    timeline.cycle_time_hours = timeline.metric_cycle_hours
+
     if timeline.delivered_at:
-        had_dev_return_before_delivery = _had_return_before(
+        timeline.returns_before_delivery = _count_returns_before(
             ordered, workflow, "return_developer", timeline.delivered_at
         )
-        timeline.accepted_without_dev_return = not had_dev_return_before_delivery
-
-    timeline.closed_at = card.date_closed
-    timeline.lead_time_hours = duration_hours(card.created_at, card.date_closed or now, workflow)
-    if timeline.delivered_at and timeline.created_at:
-        timeline.cycle_time_hours = duration_hours(
-            timeline.created_at,
-            timeline.delivered_at,
-            workflow,
-        )
+        timeline.accepted_without_dev_return = timeline.returns_before_delivery == 0
+    else:
+        timeline.returns_before_delivery = timeline.return_dev_count
+        timeline.accepted_without_dev_return = timeline.return_dev_count == 0
 
     timeline.passed_peer_review = any(
         timeline.group_visits.get(group, 0) > 0 for group in workflow.peer_review_groups()
@@ -568,41 +635,162 @@ def _apply_return_metrics(
     events: list[MovementEvent],
     workflow: WorkflowConfig,
 ) -> None:
-    dev_return_attributions = _dev_return_event_attributions(
-        events,
-        workflow,
-    )
+    episodes = _classify_test_return_episodes(events, workflow)
+    timeline.test_return_episodes = episodes
+    undue_ats = {ep.at for ep in episodes if ep.kind == "undue"}
+    legitimate_ats = {ep.at for ep in episodes if ep.kind == "legitimate"}
+
+    timeline.return_dev_by_teste_undue_count = len(undue_ats)
+    timeline.return_dev_by_teste_legitimate_count = len(legitimate_ats)
+    timeline.tester_undue_returns = timeline.return_dev_by_teste_undue_count
+    timeline.undue_return_hours = sum(ep.hours for ep in episodes if ep.kind == "undue")
+
+    dev_return_attributions = _dev_return_event_attributions(events, workflow)
+    # Contagem bruta de atribuicao por origem (auditoria)
     timeline.return_dev_by_teste_count = sum(
         1 for _, attributed in dev_return_attributions if attributed == "tester"
     )
     timeline.return_dev_by_revisao_count = sum(
         1 for _, attributed in dev_return_attributions if attributed == "revisor"
     )
-    timeline.developer_penalty_return_count = timeline.return_dev_count
+
+    # Preferir classificacao por episodio quando disponivel (teste→DEV)
+    if episodes:
+        timeline.return_dev_by_teste_count = (
+            timeline.return_dev_by_teste_legitimate_count + timeline.return_dev_by_teste_undue_count
+        )
+
+    undue_before_delivery = 0
+    if timeline.delivered_at:
+        undue_before_delivery = sum(
+            1
+            for ep in episodes
+            if ep.kind == "undue" and ep.at <= timeline.delivered_at
+        )
+    else:
+        undue_before_delivery = timeline.return_dev_by_teste_undue_count
+
+    # Penalidade do dev: qualquer retorno antes da entrega EXCETO episódios indevidos de teste
+    timeline.developer_penalty_return_count = max(
+        0, timeline.returns_before_delivery - undue_before_delivery
+    )
+    timeline.accepted_without_dev_return = timeline.developer_penalty_return_count == 0
+
+    _annotate_retorno_history_kinds(timeline, undue_ats, legitimate_ats)
+    timeline.undue_return_solutions = [
+        {
+            "identificacao": "Solução de retorno indevido",
+            "solucao_label": "Solução de retorno indevido",
+            "numero": entry.numero,
+            "motivo": entry.motivo,
+            "solucao": entry.solucao,
+            "at": isoformat(entry.at),
+            "tester": timeline.tester,
+        }
+        for entry in timeline.retorno_history
+        if entry.is_undue_test_return
+    ]
+
     timeline.test_return_missing_reason_count = _test_return_missing_reason_count(
         dev_return_attributions,
         timeline.retorno_history,
+        undue_ats=undue_ats,
     )
-    timeline.tester_returned_dev = timeline.return_dev_by_teste_count > 0
-    if timeline.delivered_at:
-        timeline.accepted_without_dev_return = timeline.developer_penalty_return_count == 0
-    timeline.test_cycles = (
-        timeline.group_visits.get("waiting_test", 0) + timeline.group_visits.get("testing", 0)
+    # Retorno "de qualidade" do ponto de vista do DEV = so legítimos
+    timeline.tester_returned_dev = timeline.return_dev_by_teste_legitimate_count > 0
+    timeline.test_cycles = timeline.group_visits.get("testing", 0)
+    timeline.passed_test_phase = (
+        timeline.test_cycles > 0 or timeline.group_visits.get("waiting_test", 0) > 0
     )
-    timeline.passed_test_phase = timeline.test_cycles > 0
+
+
+def _annotate_retorno_history_kinds(
+    timeline: CardTimeline,
+    undue_ats: set[datetime],
+    legitimate_ats: set[datetime],
+) -> None:
+    for entry in timeline.retorno_history:
+        if entry.tipo != "dev" or entry.at is None:
+            continue
+        if entry.at in undue_ats:
+            entry.kind = "undue"
+            entry.is_undue_test_return = True
+        elif entry.at in legitimate_ats:
+            entry.kind = "legitimate"
+            entry.is_undue_test_return = False
+
+
+def _classify_test_return_episodes(
+    events: list[MovementEvent],
+    workflow: WorkflowConfig,
+) -> list[TestReturnEpisode]:
+    test_sources = set(workflow.tester_source_groups()) | {"waiting_test", "testing"}
+    ordered = sorted(
+        (event for event in events if event.event_type == "moved"),
+        key=lambda item: item.at,
+    )
+    episodes: list[TestReturnEpisode] = []
+    for index, event in enumerate(ordered):
+        if workflow.group_for_list(event.to_list_name) != "return_developer":
+            continue
+        source_group = workflow.group_for_list(event.from_list_name)
+        if source_group not in test_sources:
+            continue
+        exit_group: str | None = None
+        exit_at: datetime | None = None
+        for later in ordered[index + 1 :]:
+            if workflow.group_for_list(later.from_list_name) != "return_developer":
+                continue
+            exit_group = workflow.group_for_list(later.to_list_name)
+            exit_at = later.at
+            break
+        if exit_group in {"waiting_test", "testing"}:
+            kind = "undue"
+        elif exit_group == "development":
+            kind = "legitimate"
+        elif exit_group is None:
+            kind = "open"
+        else:
+            kind = "other"
+        hours = 0.0
+        if exit_at is not None:
+            hours = duration_hours(event.at, exit_at, workflow)
+        episodes.append(
+            TestReturnEpisode(
+                at=event.at,
+                kind=kind,
+                source_group=source_group,
+                exit_group=exit_group,
+                hours=hours,
+            )
+        )
+    return episodes
 
 
 def _test_return_missing_reason_count(
     dev_return_attributions: list[tuple[datetime, str]],
     history: list[RetornoHistoryEntry],
+    *,
+    undue_ats: set[datetime] | None = None,
 ) -> int:
     history_by_at = {entry.at: entry for entry in history if entry.tipo == "dev" and entry.at}
     missing = 0
+    seen: set[datetime] = set()
     for at, attributed in dev_return_attributions:
         if attributed != "tester":
             continue
+        if at in seen:
+            continue
+        seen.add(at)
         entry = history_by_at.get(at)
-        if entry is None or not clean_return_text(entry.motivo):
+        # Indevido sem solucao e qualquer retorno de teste sem motivo
+        needs_solucao = undue_ats is not None and at in undue_ats
+        if entry is None:
+            missing += 1
+            continue
+        if needs_solucao and not clean_return_text(entry.solucao):
+            missing += 1
+        elif not clean_return_text(entry.motivo):
             missing += 1
     return missing
 
@@ -617,13 +805,14 @@ def _dev_return_event_attributions(
 ) -> list[tuple[datetime, str]]:
     attributions: list[tuple[datetime, str]] = []
     reviewer_groups = set(workflow.reviewer_source_groups())
+    tester_groups = set(workflow.tester_source_groups()) | {"waiting_test", "testing"}
     for event in sorted(events, key=lambda item: item.at):
         if event.event_type != "moved":
             continue
         if workflow.group_for_list(event.to_list_name) != "return_developer":
             continue
         source_group = workflow.group_for_list(event.from_list_name)
-        if source_group == "testing":
+        if source_group in tester_groups:
             attributed = "tester"
         elif source_group in reviewer_groups:
             attributed = "revisor"
@@ -661,18 +850,24 @@ def _list_spans(
 
     Corrige tempo perdido antes da primeira movimentacao quando createCard/copyCard
     nao aparece no export: ancora em card.created_at e from_list da primeira acao.
+    Eventos archived encerram o span corrente; unarchived reabre na mesma lista.
     """
     ordered = sorted(events, key=lambda item: item.at)
     lifecycle = [
-        event for event in ordered if event.event_type in {"created", "copied", "moved"}
+        event
+        for event in ordered
+        if event.event_type in {"created", "copied", "moved", "archived", "unarchived"}
     ]
+    archived_at = _first_event_at(ordered, "archived")
+    span_end_default = card.date_closed or archived_at or now
+
     if not lifecycle and card.created_at and card.current_list_name:
         return [
             {
                 "list_name": card.current_list_name,
                 "start": card.created_at,
-                "end": card.date_closed or now,
-                "hours": duration_hours(card.created_at, card.date_closed or now, workflow),
+                "end": span_end_default,
+                "hours": duration_hours(card.created_at, span_end_default, workflow),
             }
         ]
 
@@ -683,15 +878,31 @@ def _list_spans(
     if lifecycle and lifecycle[0].event_type in {"created", "copied"}:
         current_list = lifecycle[0].to_list_name or card.current_list_name
         current_start = lifecycle[0].at
-        move_events = lifecycle[1:]
+        rest_events = lifecycle[1:]
     elif lifecycle:
         current_list = lifecycle[0].from_list_name or card.current_list_name
         current_start = card.created_at or lifecycle[0].at
-        move_events = lifecycle
+        rest_events = lifecycle
     else:
         return spans
 
-    for event in move_events:
+    for event in rest_events:
+        if event.event_type == "archived":
+            if current_list and current_start and event.at:
+                spans.append(
+                    {
+                        "list_name": current_list,
+                        "start": current_start,
+                        "end": event.at,
+                        "hours": duration_hours(current_start, event.at, workflow),
+                    }
+                )
+            current_start = None
+            continue
+        if event.event_type == "unarchived":
+            if current_list:
+                current_start = event.at
+            continue
         if event.event_type != "moved":
             continue
         if current_list and current_start and event.at:
@@ -706,17 +917,39 @@ def _list_spans(
         current_list = event.to_list_name or current_list
         current_start = event.at
 
-    end = card.date_closed or now
     if current_list and current_start:
         spans.append(
             {
                 "list_name": current_list,
                 "start": current_start,
-                "end": end,
-                "hours": duration_hours(current_start, end, workflow),
+                "end": span_end_default,
+                "hours": duration_hours(current_start, span_end_default, workflow),
             }
         )
     return spans
+
+
+def _first_event_at(events: list[MovementEvent], event_type: str) -> datetime | None:
+    for event in events:
+        if event.event_type == event_type and event.at:
+            return event.at
+    return None
+
+
+def _count_returns_before(
+    events: list[MovementEvent],
+    workflow: WorkflowConfig,
+    return_group: str,
+    before: datetime,
+) -> int:
+    return sum(
+        1
+        for event in events
+        if event.event_type == "moved"
+        and event.at
+        and event.at < before
+        and workflow.group_for_list(event.to_list_name) == return_group
+    )
 
 
 def _detect_return_after_terminal(
