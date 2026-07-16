@@ -9,7 +9,6 @@ from trello_metrics.domain.models import (
     BoardData,
     BoardMoveEvent,
     CustomFieldChange,
-    DueChangeEvent,
     MemberEvent,
     MovementEvent,
     TrelloCard,
@@ -64,7 +63,6 @@ def parse_board_export(payload: dict[str, Any]) -> BoardData:
         custom_field_options,
     )
     member_events = _parse_member_events(actions, members_by_id)
-    due_changes = _parse_due_changes(actions)
     board_move_events = _parse_board_move_events(actions)
     for event in board_move_events:
         if event.direction != "out":
@@ -88,7 +86,6 @@ def parse_board_export(payload: dict[str, Any]) -> BoardData:
         movements=movements,
         custom_field_changes=custom_field_changes,
         member_events=member_events,
-        due_changes=due_changes,
         board_move_events=board_move_events,
         raw=payload,
     )
@@ -453,36 +450,6 @@ def _parse_member_events(
                 member_id=member_id,
                 member_name=member_name,
                 op="add" if action_type == "addMemberToCard" else "remove",
-                actor_id=member_creator.get("id"),
-                actor_name=clean_spaces(member_creator.get("fullName")),
-            )
-        )
-    return sorted(events, key=lambda item: item.at)
-
-
-def _parse_due_changes(actions: list[dict[str, Any]]) -> list[DueChangeEvent]:
-    events: list[DueChangeEvent] = []
-    for action in actions:
-        if action.get("type") != "updateCard":
-            continue
-        data = action.get("data") or {}
-        old = data.get("old") or {}
-        if "due" not in old and "due" not in (data.get("card") or {}):
-            continue
-        if "due" not in old:
-            continue
-        card = data.get("card") or {}
-        card_id = card.get("id")
-        at = parse_trello_datetime(action.get("date"))
-        if not card_id or not at:
-            continue
-        member_creator = action.get("memberCreator") or {}
-        events.append(
-            DueChangeEvent(
-                card_id=card_id,
-                at=at,
-                old_due=parse_trello_datetime(old.get("due")),
-                new_due=parse_trello_datetime(card.get("due")),
                 actor_id=member_creator.get("id"),
                 actor_name=clean_spaces(member_creator.get("fullName")),
             )

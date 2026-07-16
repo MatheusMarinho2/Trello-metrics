@@ -84,16 +84,6 @@ class MemberEvent:
 
 
 @dataclass(frozen=True)
-class DueChangeEvent:
-    card_id: str
-    at: datetime
-    old_due: datetime | None
-    new_due: datetime | None
-    actor_id: str | None = None
-    actor_name: str | None = None
-
-
-@dataclass(frozen=True)
 class BoardMoveEvent:
     card_id: str
     at: datetime
@@ -142,6 +132,5 @@ class BoardData:
     movements: list[MovementEvent]
     custom_field_changes: list[CustomFieldChange] = field(default_factory=list)
     member_events: list[MemberEvent] = field(default_factory=list)
-    due_changes: list[DueChangeEvent] = field(default_factory=list)
     board_move_events: list[BoardMoveEvent] = field(default_factory=list)
     raw: dict[str, Any] = field(default_factory=dict)

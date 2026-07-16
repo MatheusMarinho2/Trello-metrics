@@ -1261,9 +1261,6 @@ function ManagementSections({
       {metrics.member_assignment ? (
         <ObjectPanel title="Atribuicao de membros" value={metrics.member_assignment} />
       ) : null}
-      {metrics.due_predictability ? (
-        <ObjectPanel title="Previsibilidade (due)" value={metrics.due_predictability} />
-      ) : null}
       {metrics.board_moves ? (
         <ObjectPanel title="Movimentacao entre boards" value={metrics.board_moves} />
       ) : null}

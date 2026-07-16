@@ -19,7 +19,6 @@ from trello_metrics.metrics.aggregators.first_time_right import aggregate_first_
 from trello_metrics.metrics.aggregators.flow import aggregate_flow_metrics
 from trello_metrics.metrics.aggregators.predictability import (
     aggregate_board_moves,
-    aggregate_due_predictability,
     aggregate_member_assignment,
 )
 from trello_metrics.metrics.aggregators.priority import aggregate_priority_metrics
@@ -210,13 +209,6 @@ class MetricsEngine:
                 timelines,
                 cards,
                 board.member_events,
-                self.workflow,
-                period,
-            )
-            payload["due_predictability"] = aggregate_due_predictability(
-                timelines,
-                cards,
-                board.due_changes,
                 self.workflow,
                 period,
             )

@@ -40,7 +40,6 @@ METRIC_OPTIONS = [
     {"value": "antifraud", "label": "Antifraude"},
     {"value": "first_time_right", "label": "First-Time-Right"},
     {"value": "member_assignment", "label": "Atribuicao de membros"},
-    {"value": "due_predictability", "label": "Previsibilidade (due)"},
     {"value": "board_moves", "label": "Movimentacao entre boards"},
     {"value": "custom_fields", "label": "Campos personalizados"},
     {"value": "movements", "label": "Movimentos"},

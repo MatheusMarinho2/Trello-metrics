@@ -586,7 +586,6 @@ function renderFlow() {
       const peer = ftr.peer_review || {};
       const testing = ftr.testing || {};
       const member = METRICS.member_assignment || {};
-      const due = METRICS.due_predictability || {};
       const moves = METRICS.board_moves || {};
       return `
         <div class="panel">${table(
@@ -604,7 +603,6 @@ function renderFlow() {
           ${kpi("Blocked P85", statDuration(blocked, "p85_hours", "p85_human"), "Pausa + retorno suporte", "warning")}
           ${kpi("Net flow 4sem", net.avg_net_last_4_weeks ?? "-", net.alert_wip_rising ? "WIP subindo" : "Estavel", net.alert_wip_rising ? "danger" : "success")}
           ${kpi("FTR teste", pct(testing.pct), `Peer ${pct(peer.pct)}`, "success")}
-          ${kpi("Due on-time", pct(due.compliance_pct), `Replan ${pct(due.replan_rate_pct)}`, "primary")}
           ${kpi("Inconsist. membros", pct(member.inconsistent_pct), "Campo vs idMembers", "warning")}
           ${kpi("Board in/out", `${moves.cards_in ?? 0}/${moves.cards_out ?? 0}`, "Movimentacao entre boards", "purple")}
         </div>`;

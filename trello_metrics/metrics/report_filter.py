@@ -29,7 +29,6 @@ METRIC_KEY_BUNDLES: dict[str, set[str]] = {
     "dora": {"dora"},
     "first_time_right": {"first_time_right"},
     "member_assignment": {"member_assignment"},
-    "due_predictability": {"due_predictability"},
     "board_moves": {"board_moves"},
 }
 
@@ -55,7 +54,6 @@ REPORT_TYPE_PRESETS: dict[str, set[str] | None] = {
         "card_dossier",
         "first_time_right",
         "member_assignment",
-        "due_predictability",
         "board_moves",
     },
     "developers": {

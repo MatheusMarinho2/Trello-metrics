@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-from trello_metrics.domain.models import DueChangeEvent, MemberEvent, TrelloCard
+from trello_metrics.domain.models import MemberEvent, TrelloCard
 from trello_metrics.metrics.aggregators.common import time_stats
 from trello_metrics.metrics.timeline import CardTimeline
 from trello_metrics.utils.business_hours import duration_hours
@@ -63,54 +63,6 @@ def aggregate_member_assignment(
     }
 
 
-def aggregate_due_predictability(
-    timelines: list[CardTimeline],
-    cards: list[TrelloCard],
-    due_changes: list[DueChangeEvent],
-    workflow: WorkflowConfig,
-    period: MonthPeriod,
-) -> dict[str, Any]:
-    card_by_id = {card.id: card for card in cards}
-    changes_by_card: dict[str, list[DueChangeEvent]] = defaultdict(list)
-    for event in due_changes:
-        changes_by_card[event.card_id].append(event)
-
-    on_time = 0
-    with_due = 0
-    deviations: list[float] = []
-    replan_cards = 0
-    due_cards = 0
-    for timeline in timelines:
-        if not timeline.is_delivered_in(period) or not timeline.delivered_at:
-            continue
-        card = card_by_id.get(timeline.card_id)
-        if not card:
-            continue
-        due = _due_at_delivery(card, changes_by_card.get(card.id, []), timeline.delivered_at)
-        if due is None:
-            continue
-        with_due += 1
-        due_cards += 1
-        if len(changes_by_card.get(card.id, [])) >= 2:
-            replan_cards += 1
-        delta = duration_hours(due, timeline.delivered_at, workflow, calendar=True)
-        # Negativo = adiantado (entregue antes do due): inverter sinal de horas uteis signed
-        if timeline.delivered_at <= due:
-            on_time += 1
-            deviations.append(-abs(duration_hours(timeline.delivered_at, due, workflow)))
-        else:
-            deviations.append(abs(duration_hours(due, timeline.delivered_at, workflow)))
-
-    return {
-        "compliance_pct": round(100 * on_time / with_due, 1) if with_due else None,
-        "with_due": with_due,
-        "on_time": on_time,
-        "delay_stats": time_stats(deviations),
-        "replan_rate_pct": round(100 * replan_cards / due_cards, 1) if due_cards else None,
-        "note": "Compliance = entregue no due vigente (ultima mudanca de due antes da entrega).",
-    }
-
-
 def aggregate_board_moves(
     board_move_events: list,
     period: MonthPeriod,
@@ -126,13 +78,6 @@ def aggregate_board_moves(
         "cards_out": moved_out,
         "net": moved_in - moved_out,
     }
-
-
-def _due_at_delivery(card: TrelloCard, changes: list[DueChangeEvent], delivered_at):
-    applicable = [event for event in changes if event.at <= delivered_at]
-    if applicable:
-        return applicable[-1].new_due
-    return card.due
 
 
 def _names_match(developer: str, member_names: list[str]) -> bool:

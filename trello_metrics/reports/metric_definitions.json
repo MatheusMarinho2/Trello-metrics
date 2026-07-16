@@ -1239,10 +1239,6 @@
       "formula": "Latencia ate addMemberToCard e % inconsistencia Desenvolvedor vs membros.",
       "example": ""
     },
-    "due_predictability": {
-      "formula": "% entregues no due vigente + taxa de replanejamento de due.",
-      "example": ""
-    },
     "board_moves": {
       "formula": "Cards que entraram/sairam do board no periodo (moveCardTo/FromBoard).",
       "example": ""

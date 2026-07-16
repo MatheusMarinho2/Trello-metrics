@@ -444,16 +444,13 @@ class PdfReportBuilder:
                     align=["left", "right", "right", "right"],
                 )
             member = self.metrics.get("member_assignment") or {}
-            due = self.metrics.get("due_predictability") or {}
             moves = self.metrics.get("board_moves") or {}
-            if member or due or moves:
-                html += subttl("Atribuicao, due e board moves") + table(
+            if member or moves:
+                html += subttl("Atribuicao e board moves") + table(
                     ["Indicador", "Valor"],
                     [
                         ["Latencia atribuicao (mediana)", _stats_triplet(member.get("assign_latency"))],
                         ["Inconsistencia membro vs campo", f"{member.get('inconsistent_pct', '-')}%"],
-                        ["Due on-time", f"{due.get('compliance_pct', '-')}%"],
-                        ["Replan due", f"{due.get('replan_rate_pct', '-')}%"],
                         ["Cards in/out board", f"{moves.get('cards_in', 0)} / {moves.get('cards_out', 0)}"],
                     ],
                     align=["left", "right"],

@@ -2801,50 +2801,7 @@ class MetricsEngineTest(unittest.TestCase):
         self.assertIn("first_time_right", result)
         self.assertEqual(result["first_time_right"]["testing"]["pct"], 100.0)
         self.assertIn("member_assignment", result)
-        self.assertIn("due_predictability", result)
         self.assertIn("board_moves", result)
-
-    def test_due_predictability_on_time(self) -> None:
-        from trello_metrics.domain.models import DueChangeEvent
-        from trello_metrics.metrics.aggregators.predictability import aggregate_due_predictability
-
-        card = TrelloCard(
-            id="due1",
-            name="PM CLIENTE / Due",
-            current_list_id="prod",
-            current_list_name="EM PRODUCAO",
-            created_at=_dt(2026, 6, 1, 9),
-            due=_dt(2026, 6, 10, 18),
-            custom_fields={"Desenvolvedor": "D-Dev.A", "Nivel": "3"},
-        )
-        events = [
-            MovementEvent(
-                card_id=card.id,
-                card_name=card.name,
-                at=_dt(2026, 6, 1, 9),
-                event_type="created",
-                to_list_name="EM ANDAMENTO",
-            ),
-            MovementEvent(
-                card_id=card.id,
-                card_name=card.name,
-                at=_dt(2026, 6, 5, 10),
-                event_type="moved",
-                from_list_name="EM ANDAMENTO",
-                to_list_name="EM PRODUCAO",
-            ),
-        ]
-        timelines = build_card_timelines([card], {card.id: events}, self.workflow, _dt(2026, 6, 30))
-        result = aggregate_due_predictability(
-            timelines,
-            [card],
-            [],
-            self.workflow,
-            self.period,
-        )
-        self.assertEqual(result["compliance_pct"], 100.0)
-        self.assertEqual(result["with_due"], 1)
-
 
     def test_ignored_person_as_reviewer_keeps_other_collaborators(self) -> None:
         """Jucelio nao gera metricas pessoais; card e demais colaboradores continuam."""
