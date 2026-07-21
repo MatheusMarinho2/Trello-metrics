@@ -6,6 +6,7 @@ from typing import Any
 from reports.models import (
     Collaborator,
     GeneratedReport,
+    ProjectSystem,
     TrelloBoardSnapshot,
     TrelloCardRecord,
     TrelloCustomFieldChangeRecord,
@@ -33,6 +34,8 @@ COLLABORATOR_FIELDS = (
     "Revisor",
     "Tester",
 )
+
+SISTEMA_FIELD_KEYS = ("Sistema", "sistema")
 
 
 class TrelloSnapshotService:
@@ -127,6 +130,7 @@ class TrelloSnapshotService:
             batch_size=1000,
         )
         sync_collaborators_from_board(board)
+        sync_systems_from_board(board)
         return snapshot
 
     def load_board(self, snapshot: TrelloBoardSnapshot) -> BoardData:
@@ -311,6 +315,124 @@ def inactive_collaborator_names() -> set[str]:
         for alias in collaborator.aliases or []:
             names.add(normalize_name(alias))
     return {name for name in names if name}
+
+
+def list_known_systems() -> list[str]:
+    stored = list(
+        ProjectSystem.objects.filter(active=True).values_list("name", flat=True)
+    )
+    if stored:
+        return sorted(stored, key=lambda name: name.casefold())
+
+    discovered: dict[str, str] = {}
+
+    for report in GeneratedReport.objects.only("metrics", "filtered_metrics").iterator(
+        chunk_size=50
+    ):
+        for payload in (report.filtered_metrics, report.metrics):
+            if not isinstance(payload, dict):
+                continue
+            for name in payload.get("systems") or []:
+                _remember_system(discovered, name)
+            for row in payload.get("projects") or []:
+                if isinstance(row, dict):
+                    _remember_system(discovered, row.get("name"))
+            summary = payload.get("project_summary") or {}
+            if isinstance(summary, dict):
+                _remember_system(discovered, summary.get("name"))
+
+    for card in TrelloCardRecord.objects.only("custom_fields").iterator(chunk_size=500):
+        fields = card.custom_fields or {}
+        for key in SISTEMA_FIELD_KEYS:
+            _remember_system(discovered, fields.get(key))
+        for field_name, field_value in fields.items():
+            if normalize_name(field_name) == "sistema":
+                _remember_system(discovered, field_value)
+
+    return sorted(discovered.values(), key=lambda name: name.casefold())
+
+
+def sync_systems_from_trello(
+    *,
+    board_id: str,
+    api_key: str,
+    token: str,
+) -> dict[str, Any]:
+    from django.conf import settings
+
+    from reports.clients.trello_client import TrelloApiClient
+    from reports.dataclasses.report_config import TrelloSourceConfig
+    from trello_metrics.parsers.export_loader import parse_board_export
+
+    resolved_board_id = (board_id or settings.DEFAULT_TRELLO_BOARD_ID or "").strip()
+    if not resolved_board_id:
+        raise ValueError("Informe o board_id do Trello.")
+
+    config = TrelloSourceConfig(
+        board_id=resolved_board_id,
+        api_key=(api_key or "").strip(),
+        token=(token or "").strip(),
+        use_live_api=True,
+    )
+    payload = TrelloApiClient().fetch_board_export(config)
+    board = parse_board_export(payload)
+    stats = sync_systems_from_board(board)
+    systems = ProjectSystem.objects.all()
+
+    return {
+        **stats,
+        "total": systems.count(),
+        "board_id": board.id,
+        "board_name": board.name,
+        "systems": systems,
+    }
+
+
+def sync_systems_from_board(board: BoardData) -> dict[str, int]:
+    discovered: dict[str, str] = {}
+    for card in board.cards:
+        fields = card.custom_fields or {}
+        for key in SISTEMA_FIELD_KEYS:
+            _remember_system(discovered, fields.get(key))
+        for field_name, field_value in fields.items():
+            if normalize_name(field_name) == "sistema":
+                _remember_system(discovered, field_value)
+
+    return _upsert_discovered_systems(discovered)
+
+
+def _upsert_discovered_systems(discovered: dict[str, str]) -> dict[str, int]:
+    created = 0
+    updated = 0
+    for name in discovered.values():
+        system, was_created = ProjectSystem.objects.get_or_create(
+            name=name,
+            defaults={"source": "trello", "active": True},
+        )
+        if was_created:
+            created += 1
+            continue
+        changed = False
+        if system.source != "trello":
+            system.source = "trello"
+            changed = True
+        if not system.active:
+            system.active = True
+            changed = True
+        if changed:
+            system.save(update_fields=["source", "active", "updated_at"])
+            updated += 1
+    return {"created": created, "updated": updated}
+
+
+def _remember_system(discovered: dict[str, str], value: object) -> None:
+    text = (str(value) if value is not None else "").strip()
+    if not text or normalize_name(text) in {"", "nao informado", "n/a", "-"}:
+        return
+    key = normalize_name(text)
+    current = discovered.get(key)
+    if current is None or len(text) > len(current):
+        discovered[key] = text
 
 
 def _add_discovered(discovered: dict[str, set[str]], value: str | None) -> None:

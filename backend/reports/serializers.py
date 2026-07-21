@@ -10,7 +10,7 @@ from reports.dataclasses.report_config import (
     ReportGenerationConfig,
     TrelloSourceConfig,
 )
-from reports.models import Collaborator, GeneratedReport, OvertimeEntry, WorkCalendarException
+from reports.models import Collaborator, GeneratedReport, OvertimeEntry, ProjectSystem, WorkCalendarException
 from reports.services.ai_models import (
     DEFAULT_MAX_OUTPUT_TOKENS,
     MAX_OUTPUT_TOKENS_LIMIT,
@@ -26,8 +26,11 @@ REPORT_TYPE_CHOICES = (
     ("developers", "Desenvolvedores"),
     ("requesters", "Solicitantes"),
     ("testers", "Testers"),
+    ("reviewers", "Revisao em par"),
+    ("formal_reviewers", "Revisores"),
     ("management", "Gestao"),
     ("specific_metrics", "Metricas especificas"),
+    ("by_system", "Por sistema"),
 )
 
 AI_PROVIDER_CHOICES = (
@@ -74,6 +77,11 @@ class ReportGenerationSerializer(serializers.Serializer):
         required=False,
         allow_blank=True,
     )
+    sistema_name = serializers.CharField(
+        max_length=160,
+        required=False,
+        allow_blank=True,
+    )
     metric_keys = serializers.ListField(
         child=serializers.CharField(max_length=80),
         required=False,
@@ -95,6 +103,10 @@ class ReportGenerationSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {"collaborator_name": "Informe o colaborador para o relatorio individual."}
             )
+        if attrs["report_type"] == "by_system" and not attrs.get("sistema_name"):
+            raise serializers.ValidationError(
+                {"sistema_name": "Informe o sistema para o relatorio por sistema."}
+            )
         if attrs["report_type"] == "specific_metrics" and not attrs.get("metric_keys"):
             raise serializers.ValidationError(
                 {"metric_keys": "Selecione ao menos uma metrica especifica."}
@@ -113,6 +125,7 @@ class ReportGenerationSerializer(serializers.Serializer):
             timezone=data["timezone"],
             include_templates=data["include_templates"],
             collaborator_name=data.get("collaborator_name", ""),
+            sistema_name=data.get("sistema_name", ""),
             metric_keys=data.get("metric_keys", []),
             trello=TrelloSourceConfig(
                 board_id=trello_data.get("board_id", ""),
@@ -148,6 +161,7 @@ class GeneratedReportListSerializer(serializers.ModelSerializer):
             "report_type",
             "month",
             "collaborator_name",
+            "sistema_name",
             "board_name",
             "ai_status",
             "ai_provider",
@@ -161,10 +175,13 @@ class GeneratedReportListSerializer(serializers.ModelSerializer):
         payload = obj.filtered_metrics or {}
         team = payload.get("team_summary") or {}
         overview = payload.get("overview") or {}
+        project = payload.get("project_summary") or {}
         return {
-            "cards_delivered": team.get("cards_delivered", 0),
-            "quality_rate_pct": team.get("quality_rate_pct", 0),
+            "cards_delivered": project.get("cards_delivered", team.get("cards_delivered", 0)),
+            "quality_rate_pct": project.get("quality_rate_pct", team.get("quality_rate_pct", 0)),
             "cards_metricados": overview.get("total_cards_metricados", 0),
+            "wip_total": project.get("wip_total"),
+            "cards_archived": project.get("cards_archived"),
         }
 
     def get_snapshot(self, obj: GeneratedReport) -> dict[str, Any] | None:
@@ -191,6 +208,7 @@ class GeneratedReportDetailSerializer(serializers.ModelSerializer):
             "report_type",
             "month",
             "collaborator_name",
+            "sistema_name",
             "metric_keys",
             "board_id",
             "board_name",
@@ -231,6 +249,24 @@ class CollaboratorSyncSerializer(serializers.Serializer):
     board_id = serializers.CharField(max_length=120, required=False, allow_blank=True)
     api_key = serializers.CharField(max_length=240, required=False, allow_blank=True)
     token = serializers.CharField(max_length=400, required=False, allow_blank=True)
+
+
+class ProjectSystemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectSystem
+        fields = (
+            "id",
+            "name",
+            "active",
+            "source",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("id", "source", "created_at", "updated_at")
+
+    def create(self, validated_data: dict[str, Any]) -> ProjectSystem:
+        validated_data.setdefault("source", "manual")
+        return super().create(validated_data)
 
 
 class CollaboratorSerializer(serializers.ModelSerializer):

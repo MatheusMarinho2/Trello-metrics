@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Boxes,
   BrainCircuit,
   CalendarDays,
   ChevronDown,
@@ -39,6 +40,7 @@ import {
   listReports,
   login,
   syncCollaboratorsFromTrello,
+  syncSystemsFromTrello,
   updateCollaborator,
 } from "./api/client";
 import { LoadingOverlay } from "./components/LoadingOverlay";
@@ -74,6 +76,7 @@ import {
 const tabs: Array<{ value: ReportType; label: string; icon: LucideIcon }> = [
   { value: "general", label: "Geral", icon: BarChart3 },
   { value: "individual", label: "Individual", icon: User },
+  { value: "by_system", label: "Por sistema", icon: Boxes },
   { value: "developers", label: "Desenvolvedores", icon: Users },
   { value: "requesters", label: "Solicitantes", icon: ClipboardList },
   { value: "testers", label: "Testers", icon: ShieldCheck },
@@ -97,6 +100,7 @@ const fallbackOptions: ReportOptions = {
     { value: "bottlenecks", label: "Gargalos" },
     { value: "card_dossier", label: "Detalhamento" },
   ],
+  systems: [],
   ai_providers: [
     {
       value: "openai",
@@ -156,6 +160,8 @@ function App() {
   const [useLiveApi, setUseLiveApi] = useState(true);
   const [sourceJson, setSourceJson] = useState("");
   const [collaboratorName, setCollaboratorName] = useState("");
+  const [sistemaName, setSistemaName] = useState("");
+  const [syncingSystems, setSyncingSystems] = useState(false);
   const [newCollaboratorName, setNewCollaboratorName] = useState("");
   const [syncingCollaborators, setSyncingCollaborators] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
@@ -294,6 +300,7 @@ function App() {
         timezone: "America/Sao_Paulo",
         include_templates: false,
         collaborator_name: collaboratorName || undefined,
+        sistema_name: activeTab === "by_system" ? sistemaName || undefined : undefined,
         metric_keys: activeTab === "specific_metrics" ? metricKeys : undefined,
         trello: {
           board_id: boardId,
@@ -416,6 +423,39 @@ function App() {
       setError(errorMessage(err));
     } finally {
       setSyncingCollaborators(false);
+      setLoading(false);
+    }
+  }
+
+  async function handleSyncSystems() {
+    if (!useLiveApi) {
+      setError("Ative a API do Trello para sincronizar sistemas/projetos.");
+      return;
+    }
+    setError("");
+    setSyncingSystems(true);
+    setLoadingLabel("Sincronizando sistemas do Trello");
+    setLoading(true);
+    try {
+      const result = await syncSystemsFromTrello(token, {
+        board_id: boardId || undefined,
+        api_key: trelloApiKey || undefined,
+        token: trelloToken || undefined,
+      });
+      const activeSystems = result.systems
+        .filter((item) => item.active)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setOptions((current) => ({
+        ...current,
+        systems: activeSystems.map((item) => ({ value: item.name, label: item.name })),
+      }));
+      if (!sistemaName && activeSystems.length > 0) {
+        setSistemaName(activeSystems[0].name);
+      }
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSyncingSystems(false);
       setLoading(false);
     }
   }
@@ -736,6 +776,34 @@ function App() {
             </label>
           )}
 
+          {activeTab === "by_system" && (
+            <div className="sistema-picker">
+              <label>
+                Sistema / projeto
+                <select
+                  value={sistemaName}
+                  onChange={(event) => setSistemaName(event.target.value)}
+                >
+                  <option value="">Selecione um sistema</option>
+                  {(options.systems ?? []).map((system) => (
+                    <option key={system.value} value={system.value}>
+                      {system.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="sync-collaborators-button"
+                disabled={!useLiveApi || syncingSystems}
+                onClick={() => void handleSyncSystems()}
+              >
+                <RefreshCw size={16} className={syncingSystems ? "spin" : undefined} />
+                Sincronizar sistemas do Trello
+              </button>
+            </div>
+          )}
+
           {activeTab === "specific_metrics" && (
             <div className="metric-picker">
               {options.metric_options.map((option) => (
@@ -878,7 +946,25 @@ function App() {
                 </div>
               </div>
               <KpiStrip report={currentReport} />
-              <MetricCalculationGuide report={currentReport} />
+              {(currentReport.report_type === "management" ||
+                (currentReport.report_type === "specific_metrics" &&
+                  (currentReport.metric_keys ?? []).some((key) =>
+                    [
+                      "team_summary",
+                      "flow",
+                      "dora",
+                      "sla",
+                      "process_discipline",
+                      "analysis_workflow",
+                      "antifraud",
+                      "priority",
+                      "risk_board",
+                      "bottlenecks",
+                      "quality_gates",
+                    ].includes(key),
+                  ))) ? (
+                <MetricCalculationGuide report={currentReport} />
+              ) : null}
               <SnapshotInfo report={currentReport} />
               <AiAnalysis report={currentReport} />
               <MetricSections report={currentReport} />
@@ -907,6 +993,22 @@ function KpiStrip({ report }: { report: GeneratedReport }) {
         <Kpi label="Pontos" value={summary.fibonacci_total ?? "-"} term="fibonacci_total" />
         <Kpi label="Ativos" value={summary.cards_active ?? "-"} term="cards_active" />
         <Kpi label="Tempo" value={summary.time_human ?? "-"} term="time_human" />
+      </div>
+    );
+  }
+
+  if (report.report_type === "by_system" && (metrics.project_summary || metrics.role_summary)) {
+    const summary = metrics.project_summary ?? metrics.role_summary;
+    return (
+      <div className="kpi-strip">
+        <Kpi label="Entregues" value={summary.cards_delivered ?? "-"} term="cards_delivered" />
+        <Kpi label="WIP" value={summary.wip_total ?? "-"} term="wip_total" />
+        <Kpi label="Arquivados" value={summary.cards_archived ?? "-"} term="cards_archived" />
+        <Kpi
+          label="Qualidade"
+          value={summary.quality_rate_pct != null ? `${summary.quality_rate_pct}%` : "-"}
+          term="quality_rate_pct"
+        />
       </div>
     );
   }
@@ -1082,6 +1184,10 @@ function MetricSections({ report }: { report: GeneratedReport }) {
     );
   }
 
+  if (report.report_type === "by_system") {
+    return <SystemReportSections metrics={metrics} allowed={allowed} showCardDossier={showCardDossier} />;
+  }
+
   if (
     (report.report_type === "developers" && metrics.developers) ||
     (report.report_type === "testers" && metrics.testers) ||
@@ -1115,7 +1221,7 @@ function MetricSections({ report }: { report: GeneratedReport }) {
     );
   }
 
-  if (allowed.has("role_metrics") && metrics.role_summary) {
+  if (allowed.has("role_metrics") && metrics.role_summary && report.report_type !== "specific_metrics") {
     return (
       <div className="metric-sections">
         <ObjectPanel title="Resumo do relatorio" value={metrics.role_summary} />
@@ -1193,6 +1299,9 @@ function MetricSections({ report }: { report: GeneratedReport }) {
           <MetricTable key={title} title={title} rows={rows} />
         ) : null,
       )}
+      {allowed.has("projects") && Array.isArray(metrics.project_profiles) && metrics.project_profiles.length > 0 ? (
+        <ProjectProfilesSections profiles={metrics.project_profiles} />
+      ) : null}
       {allowed.has("collaborators") && Array.isArray(metrics.collaborators) && metrics.collaborators.length > 0 ? (
         <CollaboratorsSections collaborators={metrics.collaborators} dossier={metrics.card_dossier} />
       ) : null}
@@ -1219,6 +1328,156 @@ function MetricSections({ report }: { report: GeneratedReport }) {
       ) : null}
       {showCardDossier && !metrics.collaborators?.length ? (
         <CardDossier title="Cards" metrics={metrics} />
+      ) : null}
+    </div>
+  );
+}
+
+function ProjectProfilesSections({ profiles }: { profiles: Array<Record<string, any>> }) {
+  return (
+    <section className="metric-sections">
+      <h3>Detalhamento por sistema</h3>
+      {profiles.map((profile) => {
+        const sla = profile.sla || {};
+        const flow = profile.flow || {};
+        const lead = flow.lead_time || profile.lead_time || {};
+        const bn = (profile.bottlenecks || {}).top_bottleneck || profile.top_bottleneck || {};
+        const summary = {
+          entregues: profile.cards_delivered ?? 0,
+          criados: profile.cards_created ?? 0,
+          arquivados: profile.cards_archived ?? 0,
+          wip: profile.wip_total ?? 0,
+          pontos: profile.fibonacci_total ?? 0,
+          qualidade_pct: profile.quality_rate_pct ?? 0,
+          rework_pct: profile.rework_rate_pct ?? 0,
+          lead_time_medio: lead.avg_human ?? "-",
+          sla_cumprimento_pct: sla.compliance_pct ?? 0,
+          sla_estourados: sla.breached_count ?? 0,
+          sla_em_risco_agora: sla.current_at_risk_count ?? 0,
+          top_gargalo: bn.title || bn.group || "-",
+          top_desenvolvedor: profile.top_developer || "-",
+        };
+        return (
+          <div key={profile.name || JSON.stringify(summary)} className="metric-sections">
+            <ObjectPanel title={`Sistema — ${profile.name || "-"}`} value={summary} />
+            {Array.isArray(sla.by_stage) && sla.by_stage.length > 0 ? (
+              <MetricTable title={`SLA por etapa — ${profile.name}`} rows={sla.by_stage} />
+            ) : null}
+            {Array.isArray(flow.wip_by_stage) && flow.wip_by_stage.length > 0 ? (
+              <MetricTable title={`WIP por etapa — ${profile.name}`} rows={flow.wip_by_stage} />
+            ) : null}
+            {Array.isArray((profile.bottlenecks || {}).by_stage) &&
+            profile.bottlenecks.by_stage.length > 0 ? (
+              <MetricTable
+                title={`Gargalos — ${profile.name}`}
+                rows={profile.bottlenecks.by_stage}
+              />
+            ) : null}
+            {Array.isArray(profile.developers) && profile.developers.length > 0 ? (
+              <MetricTable title={`Desenvolvedores — ${profile.name}`} rows={profile.developers} />
+            ) : null}
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+function SystemReportSections({
+  metrics,
+  allowed,
+  showCardDossier,
+}: {
+  metrics: Record<string, any>;
+  allowed: Set<string>;
+  showCardDossier: boolean;
+}) {
+  const summary = metrics.project_summary || {};
+  const comparison = summary.comparison || {};
+  const comparisonRows = Object.entries({
+    cards_delivered: "Entregues",
+    cards_archived: "Arquivados",
+    wip_total: "WIP",
+    fibonacci_total: "Pontos",
+    rework_rate_pct: "Rework %",
+  }).map(([key, label]) => {
+    const item = comparison[key] || {};
+    return {
+      indicador: label,
+      anterior: item.previous ?? "-",
+      atual: item.current ?? "-",
+      delta: item.delta ?? "-",
+      delta_pct: item.delta_pct ?? "-",
+    };
+  });
+  const trends = metrics.trends_6m;
+  const trendRows = (trends?.team ?? []).map((row: Record<string, any>) => ({
+    month: row.month,
+    cards_delivered: row.cards_delivered,
+    quality_rate_pct: row.quality_rate_pct,
+    rework_rate_pct: row.rework_rate_pct,
+  }));
+
+  return (
+    <div className="metric-sections">
+      {summary.name || metrics.sistema_filter ? (
+        <ObjectPanel title={`Resumo do sistema — ${summary.name || metrics.sistema_filter}`} value={summary} />
+      ) : null}
+      {comparisonRows.some((row) => row.atual !== "-" || row.anterior !== "-") ? (
+        <MetricTable
+          title={`Comparacao vs ${summary.previous_month || "mes anterior"}`}
+          rows={comparisonRows}
+        />
+      ) : null}
+      {allowed.has("flow") && metrics.flow?.team ? (
+        <>
+          <ObjectPanel title="Fluxo do sistema" value={metrics.flow.team} />
+          {Array.isArray(metrics.flow.wip_by_stage) && metrics.flow.wip_by_stage.length > 0 ? (
+            <MetricTable title="WIP por etapa" rows={metrics.flow.wip_by_stage} />
+          ) : null}
+          {Array.isArray(metrics.flow.aging_wip) && metrics.flow.aging_wip.length > 0 ? (
+            <MetricTable title="Aging WIP" rows={metrics.flow.aging_wip} />
+          ) : null}
+        </>
+      ) : null}
+      {allowed.has("bottlenecks") && metrics.bottlenecks?.by_stage ? (
+        <MetricTable title="Gargalos por etapa" rows={metrics.bottlenecks.by_stage} />
+      ) : null}
+      {allowed.has("trends") && trendRows.length > 0 ? (
+        <MetricTable title="Tendencia 6 meses do sistema" rows={trendRows} />
+      ) : null}
+      {allowed.has("collaborators") && Array.isArray(metrics.collaborators) && metrics.collaborators.length > 0 ? (
+        <CollaboratorsSections collaborators={metrics.collaborators} dossier={metrics.card_dossier} />
+      ) : null}
+      {allowed.has("developers") && metrics.developers ? (
+        <MetricTable title="Desenvolvedores do sistema" rows={metrics.developers} />
+      ) : null}
+      {allowed.has("requesters") && metrics.requesters ? (
+        <MetricTable title="Solicitantes do sistema" rows={metrics.requesters} />
+      ) : null}
+      {allowed.has("testers") && metrics.testers ? (
+        <MetricTable title="Testers do sistema" rows={metrics.testers} />
+      ) : null}
+      {allowed.has("sla_dev") && metrics.sla?.by_developer ? (
+        <MetricTable title="SLA por desenvolvedor" rows={metrics.sla.by_developer} />
+      ) : null}
+      {allowed.has("quality_gates") && metrics.quality_gates ? (
+        <ObjectPanel title="Dupla revisao" value={metrics.quality_gates} />
+      ) : null}
+      {allowed.has("risk") && metrics.risk_board ? (
+        <ObjectPanel title="Risco" value={metrics.risk_board} />
+      ) : null}
+      {allowed.has("dora") && metrics.dora ? (
+        <ObjectPanel title="DORA" value={metrics.dora} />
+      ) : null}
+      {allowed.has("discipline") && metrics.process_discipline ? (
+        <ObjectPanel title="Disciplina de processo" value={metrics.process_discipline} />
+      ) : null}
+      {allowed.has("antifraud") && metrics.antifraud ? (
+        <AntifraudPanel antifraud={metrics.antifraud} />
+      ) : null}
+      {showCardDossier && !(Array.isArray(metrics.collaborators) && metrics.collaborators.length > 0) ? (
+        <CardDossier title="Demandas do sistema" metrics={metrics} />
       ) : null}
     </div>
   );

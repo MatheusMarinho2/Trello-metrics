@@ -14,6 +14,7 @@ REPORT_TYPES = [
     {"value": "formal_reviewers", "label": "Revisores"},
     {"value": "management", "label": "Gestao"},
     {"value": "specific_metrics", "label": "Metricas especificas"},
+    {"value": "by_system", "label": "Por sistema"},
 ]
 
 METRIC_OPTIONS = [
@@ -46,9 +47,12 @@ METRIC_OPTIONS = [
 ]
 
 
-def report_options() -> dict[str, list[dict[str, Any]]]:
+def report_options() -> dict[str, Any]:
+    from reports.services.trello_snapshot_service import list_known_systems
+
     return {
         "report_types": REPORT_TYPES,
         "metric_options": METRIC_OPTIONS,
         "ai_providers": AI_PROVIDERS,
+        "systems": [{"value": name, "label": name} for name in list_known_systems()],
     }

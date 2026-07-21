@@ -69,12 +69,18 @@ REPORT_INSTRUCTIONS: dict[str, str] = {
         "Relatorio de METRICAS ESPECIFICAS. Responda as 5 perguntas apenas sobre "
         "as secoes presentes no JSON."
     ),
+    "by_system": (
+        "Relatorio POR SISTEMA/PROJETO. Analise somente o sistema alvo em project_summary: "
+        "andamento do mes, WIP, entregas, arquivados, gargalos, qualidade e tendencia 6 meses "
+        "versus o mes anterior (comparison). Compare progresso e riscos do sistema; "
+        "mencione pessoas apenas quando forem relevantes ao fluxo do sistema."
+    ),
 }
 
 COLLABORATOR_REPORT_TYPES = frozenset({"general", "developers", "testers", "requesters"})
 
 TWO_PART_REPORT_TYPES = frozenset(
-    {"general", "individual", "management", "developers", "testers", "requesters"}
+    {"general", "individual", "management", "developers", "testers", "requesters", "by_system"}
 )
 
 PromptPart = Literal["full", "first", "second"]

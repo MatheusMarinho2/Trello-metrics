@@ -71,8 +71,18 @@ class MetricsSelectionService:
                 "risk_board",
                 "trends_6m",
             ), metrics)
+        if report_type == "by_system":
+            return self._with_card_metadata(
+                self._by_system_payload(payload, metrics, config.sistema_name),
+                metrics,
+            )
         if report_type == "specific_metrics":
-            payload = self._pick(payload, metrics, *config.metric_keys)
+            keys = list(config.metric_keys)
+            if "projects" in keys:
+                for extra in ("project_profiles", "systems"):
+                    if extra not in keys:
+                        keys.append(extra)
+            payload = self._pick(payload, metrics, *keys)
             payload["role_summary"] = _specific_summary(payload, config.metric_keys)
             return self._with_card_metadata(payload, metrics)
         return self._with_card_metadata(payload, metrics)
@@ -187,6 +197,59 @@ class MetricsSelectionService:
         payload = self._pick(payload, metrics, "testers", "quality_gates")
         dossier = metrics.get("card_dossier") or {}
         payload["card_dossier"] = {"by_tester": deepcopy(dossier.get("by_tester", {}))}
+        return payload
+
+    def _by_system_payload(
+        self,
+        payload: dict[str, Any],
+        metrics: dict[str, Any],
+        sistema_name: str,
+    ) -> dict[str, Any]:
+        payload = self._pick(
+            payload,
+            metrics,
+            "project_summary",
+            "team_summary",
+            "flow",
+            "priority",
+            "dora",
+            "projects",
+            "bottlenecks",
+            "sla",
+            "quality_gates",
+            "process_discipline",
+            "risk_board",
+            "trends_6m",
+            "collaborators",
+            "developers",
+            "developer_profiles",
+            "requesters",
+            "testers",
+            "reviewers",
+            "formal_reviewers",
+            "card_dossier",
+            "analysis_workflow",
+            "antifraud",
+            "fibonacci_points",
+            "systems",
+            "sistema_filter",
+        )
+        summary = deepcopy(metrics.get("project_summary") or {})
+        if not summary.get("name"):
+            summary["name"] = sistema_name
+        payload["project_summary"] = summary
+        payload["sistema_filter"] = sistema_name or metrics.get("sistema_filter") or ""
+        payload["systems"] = deepcopy(metrics.get("systems") or [])
+        payload["role_summary"] = {
+            "scope": "by_system",
+            "sistema": summary.get("name") or sistema_name,
+            "cards_delivered": summary.get("cards_delivered", 0),
+            "wip_total": summary.get("wip_total", 0),
+            "cards_archived": summary.get("cards_archived", 0),
+            "fibonacci_total": summary.get("fibonacci_total", 0),
+            "rework_rate_pct": summary.get("rework_rate_pct", 0),
+            "quality_rate_pct": summary.get("quality_rate_pct", 0),
+        }
         return payload
 
 

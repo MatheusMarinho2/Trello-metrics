@@ -42,6 +42,13 @@ const REPORT_LAYOUTS = {
   specific_metrics: {
     sections: null,
   },
+  by_system: {
+    sections: [
+      "overview", "ai-analysis", "flow", "risk", "priority", "dora", "discipline",
+      "analysis-workflow", "antifraud", "fibonacci", "collaborators", "developers",
+      "testers", "requesters", "projects", "sla", "bottlenecks", "trends", "quality", "dossier",
+    ],
+  },
 };
 
 function configureReportLayout() {
@@ -355,10 +362,14 @@ function renderHero() {
 
   const meta = METRICS.export_meta || {};
   const customTitle = (meta.title || "").split("|")[0].trim();
+  const project = METRICS.project_summary || {};
   document.getElementById("hero-title").textContent = customTitle || `Relatorio ${month}`;
   document.getElementById("hero-board").textContent = board.name || "Quadro Trello";
-  document.getElementById("hero-meta").textContent =
-    `Gerado em ${generated || "-"} · ${team.cards_delivered ?? 0} cards entregues · pontos so para desenvolvedor`;
+  const delivered = project.cards_delivered ?? team.cards_delivered ?? 0;
+  const sistemaLabel = project.name || meta.sistema_name;
+  document.getElementById("hero-meta").textContent = sistemaLabel
+    ? `Sistema ${sistemaLabel} · Gerado em ${generated || "-"} · ${delivered} cards entregues`
+    : `Gerado em ${generated || "-"} · ${delivered} cards entregues · pontos so para desenvolvedor`;
 
   const seal = team.quality_seal || "Sem dados";
   const badge = document.getElementById("seal-badge");
@@ -375,6 +386,10 @@ function renderOverview() {
   const reportType = METRICS.export_meta?.report_type || "general";
   if (reportType === "individual" && METRICS.individual_summary) {
     renderIndividualOverview();
+    return;
+  }
+  if (reportType === "by_system" && METRICS.project_summary) {
+    renderProjectOverview();
     return;
   }
   if (METRICS.role_summary) {
@@ -484,11 +499,62 @@ function renderIndividualOverview() {
   document.getElementById("overview-charts").innerHTML = "";
 }
 
+function renderProjectOverview() {
+  const summary = METRICS.project_summary || {};
+  const grid = document.getElementById("kpi-grid");
+  const bottleneck = summary.top_bottleneck || {};
+  grid.innerHTML = [
+    kpi("Sistema", summary.name ?? METRICS.sistema_filter ?? "-", summary.month || "", "primary"),
+    kpi("Entregues", summary.cards_delivered ?? 0, `${summary.cards_archived ?? 0} arquivados`, "success"),
+    kpi("WIP", summary.wip_total ?? 0, `${summary.fibonacci_total ?? 0} pts Fibonacci`, "warning"),
+    kpi(
+      "Qualidade",
+      pct(summary.quality_rate_pct),
+      `Rework ${pct(summary.rework_rate_pct)} · ${bottleneck.title || bottleneck.group || "sem gargalo"}`,
+      "purple",
+    ),
+  ].join("");
+  const comparison = summary.comparison || {};
+  const charts = document.getElementById("overview-charts");
+  if (!charts) return;
+  if (!Object.keys(comparison).length) {
+    charts.innerHTML = "";
+    return;
+  }
+  const labels = {
+    cards_delivered: "Entregues",
+    cards_archived: "Arquivados",
+    wip_total: "WIP",
+    fibonacci_total: "Pontos",
+    rework_rate_pct: "Rework %",
+  };
+  const rows = Object.entries(labels).map(([key, label]) => {
+    const item = comparison[key] || {};
+    const delta = item.delta;
+    const deltaPct = item.delta_pct;
+    let deltaTxt = delta == null ? "-" : (delta > 0 ? `+${delta}` : `${delta}`);
+    if (deltaPct != null) deltaTxt += ` (${deltaPct > 0 ? "+" : ""}${deltaPct}%)`;
+    return [label, item.previous ?? "-", item.current ?? "-", deltaTxt];
+  });
+  charts.innerHTML = `
+    <div class="panel">
+      <h4>Comparacao vs ${escapeHtml(summary.previous_month || "mes anterior")}</h4>
+      ${table(["Indicador", "Anterior", "Atual", "Delta"], rows)}
+    </div>`;
+}
+
 function renderRoleOverview() {
   const summary = METRICS.role_summary || {};
   const grid = document.getElementById("kpi-grid");
   const cards = [];
-  if (summary.scope === "developers") {
+  if (summary.scope === "by_system") {
+    cards.push(
+      kpi("Sistema", summary.sistema ?? "-", "Foco do relatorio", "primary"),
+      kpi("Cards entregues", summary.cards_delivered ?? 0, `${summary.cards_archived ?? 0} arquivados`, "success"),
+      kpi("WIP", summary.wip_total ?? 0, `${summary.fibonacci_total ?? 0} pts`, "warning"),
+      kpi("Qualidade", pct(summary.quality_rate_pct), pct(summary.rework_rate_pct) + " retrabalho", "purple"),
+    );
+  } else if (summary.scope === "developers") {
     cards.push(
       kpi("Desenvolvedores", summary.people_count ?? 0, "No periodo", "primary"),
       kpi("Cards entregues", summary.cards_delivered ?? 0, "Pelo time dev", "success"),
@@ -1360,21 +1426,75 @@ function renderRequesters() {
 
 function renderProjects() {
   const rows = METRICS.projects || [];
+  const profiles = METRICS.project_profiles || [];
   const container = document.getElementById("projects-content");
+
+  const profileBlocks = profiles
+    .map((profile) => {
+      const sla = profile.sla || {};
+      const flow = profile.flow || {};
+      const lead = flow.lead_time || profile.lead_time || {};
+      const bn = (profile.bottlenecks || {}).top_bottleneck || profile.top_bottleneck || {};
+      const slaStages = sla.by_stage || [];
+      const wipStages = flow.wip_by_stage || [];
+      return `
+        <div class="panel">
+          <h4>${escapeHtml(profile.name || "Sistema")}</h4>
+          <div class="kpi-grid">
+            ${kpi("Entregues", profile.cards_delivered ?? 0, `${profile.cards_archived ?? 0} arquivados`, "success")}
+            ${kpi("WIP", profile.wip_total ?? 0, `${profile.fibonacci_total ?? 0} pts`, "warning")}
+            ${kpi("SLA", pct(sla.compliance_pct), `${sla.breached_count ?? 0} estourados`, "primary")}
+            ${kpi("Qualidade", pct(profile.quality_rate_pct), `Rework ${pct(profile.rework_rate_pct)}`, "purple")}
+          </div>
+          <p class="table-description">
+            Lead time medio: ${escapeHtml(lead.avg_human || "-")} ·
+            Top gargalo: ${escapeHtml(bn.title || bn.group || "-")} ·
+            Top dev: ${escapeHtml(profile.top_developer || "-")}
+          </p>
+          ${
+            slaStages.length
+              ? table(
+                  ["Etapa SLA", "Avaliadas", "Estouradas", "Cumprimento"],
+                  slaStages.slice(0, 8).map((s) => [
+                    escapeHtml(s.title || "-"),
+                    s.checks ?? 0,
+                    s.breached_count ?? 0,
+                    pct(s.compliance_pct),
+                  ]),
+                )
+              : ""
+          }
+          ${
+            wipStages.length
+              ? table(
+                  ["Etapa WIP", "Cards"],
+                  wipStages.slice(0, 8).map((s) => [escapeHtml(s.title || "-"), s.count ?? 0]),
+                )
+              : ""
+          }
+        </div>`;
+    })
+    .join("");
 
   container.innerHTML = `
     ${tableIntro("projects")}
     <div class="charts-grid">${chartCard("chart-projects", "Pontos por projeto")}</div>
     <div class="panel">${table(
-      ["Sistema", "Cards", "Pts normais", "Pts analise", "Top dev"],
+      ["Sistema", "Entregues", "WIP", "Arquivados", "Pts", "SLA %", "Rework %", "Lead time", "Gargalo", "Top dev"],
       rows.map((p) => [
         escapeHtml(p.name),
-        p.cards_delivered,
-        p.fibonacci_normal,
-        p.fibonacci_analysis,
+        p.cards_delivered ?? 0,
+        p.wip_total ?? 0,
+        p.cards_archived ?? 0,
+        p.fibonacci_total ?? (p.fibonacci_normal || 0) + (p.fibonacci_analysis || 0),
+        pct(p.sla_compliance_pct),
+        pct(p.rework_rate_pct),
+        escapeHtml(p.lead_time_avg_human || "-"),
+        escapeHtml(p.top_bottleneck || "-"),
         escapeHtml(p.top_developer || "-"),
       ]),
-    )}</div>`;
+    )}</div>
+    ${profileBlocks}`;
 
   if (rows.length) {
     makeChart("chart-projects", {
@@ -1382,8 +1502,8 @@ function renderProjects() {
       data: {
         labels: rows.map((p) => p.name),
         datasets: [
-          { label: "Normais", data: rows.map((p) => p.fibonacci_normal), backgroundColor: COLORS.purple, borderRadius: 4 },
-          { label: "Analise", data: rows.map((p) => p.fibonacci_analysis), backgroundColor: COLORS.indigo, borderRadius: 4 },
+          { label: "Normais", data: rows.map((p) => p.fibonacci_normal || 0), backgroundColor: COLORS.purple, borderRadius: 4 },
+          { label: "Analise", data: rows.map((p) => p.fibonacci_analysis || 0), backgroundColor: COLORS.indigo, borderRadius: 4 },
         ],
       },
       options: {

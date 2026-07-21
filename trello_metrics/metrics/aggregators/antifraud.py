@@ -29,6 +29,8 @@ def aggregate_antifraud(
     movements: list[MovementEvent],
     workflow: WorkflowConfig,
     period: MonthPeriod,
+    *,
+    focus_card_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     cards_by_id = {card.id: card for card in all_cards}
     timelines_by_id = {timeline.card_id: timeline for timeline in timelines}
@@ -39,7 +41,9 @@ def aggregate_antifraud(
     copies = [
         event
         for event in movements
-        if event.event_type == "copied" and period.contains(event.at)
+        if event.event_type == "copied"
+        and period.contains(event.at)
+        and (focus_card_ids is None or event.card_id in focus_card_ids)
     ]
 
     delivered_names = {

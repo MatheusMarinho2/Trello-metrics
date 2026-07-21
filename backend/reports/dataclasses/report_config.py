@@ -16,6 +16,7 @@ ReportType = Literal[
     "formal_reviewers",
     "management",
     "specific_metrics",
+    "by_system",
 ]
 
 AIProvider = Literal["openai", "gemini", "claude"]
@@ -54,6 +55,7 @@ class ReportGenerationConfig:
     timezone: str = "America/Sao_Paulo"
     include_templates: bool = False
     collaborator_name: str = ""
+    sistema_name: str = ""
     metric_keys: list[str] = field(default_factory=list)
 
 

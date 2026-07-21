@@ -34,6 +34,7 @@ def build_ai_context(
         "team_summary",
         "role_summary",
         "individual_summary",
+        "project_summary",
         "role_metrics",
         "flow",
         "priority",

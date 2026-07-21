@@ -73,6 +73,7 @@ class ReportExportService:
             "report_type": report.report_type,
             "month": report.month,
             "collaborator_name": report.collaborator_name,
+            "sistema_name": report.sistema_name,
             "created_at": report.created_at.isoformat(),
         }
         if report.ai_analysis:
@@ -92,6 +93,7 @@ class ReportExportService:
             "report_type": report.report_type,
             "month": report.month,
             "collaborator_name": report.collaborator_name,
+            "sistema_name": report.sistema_name,
             "board": {
                 "id": report.board_id,
                 "name": report.board_name,
@@ -117,6 +119,7 @@ REPORT_TYPE_SLUGS = {
     "testers": "testers",
     "management": "gestao",
     "specific_metrics": "metricas",
+    "by_system": "sistema",
 }
 
 
@@ -135,6 +138,10 @@ def _filename(report: GeneratedReport, extension: str) -> str:
         colaborador = _slugify(report.collaborator_name)
         if colaborador:
             parts.append(colaborador)
+    if report.sistema_name:
+        sistema = _slugify(report.sistema_name)
+        if sistema:
+            parts.append(sistema)
     if safe_month:
         parts.append(safe_month)
     name = "_".join(parts)

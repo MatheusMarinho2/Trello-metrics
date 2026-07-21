@@ -2900,6 +2900,122 @@ class MetricsEngineTest(unittest.TestCase):
         self.assertIn("Matheus", collab_names)
         self.assertIn("Joao", collab_names)
 
+    def test_calculate_filters_by_sistema_and_builds_project_summary(self) -> None:
+        legislativo = TrelloCard(
+            id="sys_leg",
+            name="PM CLIENTE / Card legislativo",
+            current_list_id="prod",
+            current_list_name="EM PRODUCAO",
+            created_at=_dt(2026, 6, 2, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.A",
+                "Nivel": "5",
+                "Sistema": "Legislativo",
+                "Solicitante": "S-Sol",
+            },
+        )
+        executivo = TrelloCard(
+            id="sys_exec",
+            name="PM CLIENTE / Card executivo",
+            current_list_id="prod",
+            current_list_name="EM PRODUCAO",
+            created_at=_dt(2026, 6, 3, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.B",
+                "Nivel": "3",
+                "Sistema": "Executivo",
+                "Solicitante": "S-Sol",
+            },
+        )
+        wip_leg = TrelloCard(
+            id="sys_wip",
+            name="PM CLIENTE / WIP legislativo",
+            current_list_id="dev",
+            current_list_name="EM ANDAMENTO",
+            created_at=_dt(2026, 6, 4, 9),
+            custom_fields={
+                "Desenvolvedor": "D-Dev.A",
+                "Nivel": "2",
+                "Sistema": "Legislativo",
+                "Solicitante": "S-Sol",
+            },
+        )
+        events = [
+            MovementEvent(
+                card_id=legislativo.id,
+                card_name=legislativo.name,
+                at=_dt(2026, 6, 2, 10),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=legislativo.id,
+                card_name=legislativo.name,
+                at=_dt(2026, 6, 5, 12),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="EM PRODUCAO",
+            ),
+            MovementEvent(
+                card_id=executivo.id,
+                card_name=executivo.name,
+                at=_dt(2026, 6, 3, 10),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=executivo.id,
+                card_name=executivo.name,
+                at=_dt(2026, 6, 6, 12),
+                event_type="moved",
+                from_list_name="EM ANDAMENTO",
+                to_list_name="EM PRODUCAO",
+            ),
+            MovementEvent(
+                card_id=wip_leg.id,
+                card_name=wip_leg.name,
+                at=_dt(2026, 6, 4, 10),
+                event_type="created",
+                to_list_name="EM ANDAMENTO",
+            ),
+            MovementEvent(
+                card_id=legislativo.id,
+                card_name=legislativo.name,
+                at=_dt(2026, 6, 20, 12),
+                event_type="archived",
+            ),
+        ]
+        board = BoardData(
+            id="board_sys",
+            name="Board sistemas",
+            url="",
+            lists={
+                "dev": TrelloList(id="dev", name="EM ANDAMENTO"),
+                "prod": TrelloList(id="prod", name="EM PRODUCAO"),
+            },
+            cards=[legislativo, executivo, wip_leg],
+            movements=events,
+        )
+        result = MetricsEngine(
+            self.workflow,
+            now=_dt(2026, 6, 30),
+            month="2026-06",
+            history_months=2,
+        ).calculate(board, sistema="Legislativo").to_dict()
+
+        self.assertIn("Legislativo", result["systems"])
+        self.assertIn("Executivo", result["systems"])
+        self.assertEqual(result["sistema_filter"], "Legislativo")
+        self.assertEqual(result["overview"]["total_cards_metricados"], 2)
+        self.assertEqual(result["flow"]["team"]["cards_delivered"], 1)
+        self.assertGreaterEqual(result["flow"]["team"]["wip_total"], 1)
+        summary = result["project_summary"]
+        self.assertEqual(summary["name"], "Legislativo")
+        self.assertEqual(summary["cards_delivered"], 1)
+        self.assertEqual(summary["cards_archived"], 1)
+        self.assertGreaterEqual(summary["wip_total"], 1)
+        self.assertIn("comparison", summary)
+
     def _board(self, card: TrelloCard, movements: list[MovementEvent]) -> BoardData:
         return BoardData(
             id="board1",

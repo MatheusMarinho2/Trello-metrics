@@ -7,7 +7,8 @@ export type ReportType =
   | "reviewers"
   | "formal_reviewers"
   | "management"
-  | "specific_metrics";
+  | "specific_metrics"
+  | "by_system";
 
 export type AIProvider = "openai" | "gemini" | "claude";
 
@@ -28,6 +29,7 @@ export interface ReportOptions {
   report_types: SelectOption[];
   metric_options: SelectOption[];
   ai_providers: AIProviderOption[];
+  systems?: SelectOption[];
 }
 
 export const AI_MAX_OUTPUT_TOKENS = 131_072;
@@ -39,6 +41,7 @@ export interface GenerateReportPayload {
   timezone: string;
   include_templates: boolean;
   collaborator_name?: string;
+  sistema_name?: string;
   metric_keys?: string[];
   trello: {
     board_id?: string;
@@ -63,6 +66,7 @@ export interface GeneratedReport {
   report_type: ReportType;
   month: string;
   collaborator_name?: string;
+  sistema_name?: string;
   metric_keys?: string[];
   board_id?: string;
   board_name?: string;
@@ -93,6 +97,15 @@ export interface Collaborator {
   id: number;
   name: string;
   aliases: string[];
+  active: boolean;
+  source: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectSystem {
+  id: number;
+  name: string;
   active: boolean;
   source: string;
   created_at: string;

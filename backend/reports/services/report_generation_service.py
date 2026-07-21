@@ -65,7 +65,10 @@ class ReportGenerationService:
             history_months=config.history_months,
             timezone_name=config.timezone,
             work_calendar=work_calendar,
-        ).calculate(parsed_board).to_dict()
+        ).calculate(
+            parsed_board,
+            sistema=config.sistema_name if config.report_type == "by_system" else None,
+        ).to_dict()
 
         filtered_metrics = self.selector.build_payload(metrics, config)
         ai_result = self.ai_service.generate(filtered_metrics, config, full_metrics=metrics)
@@ -83,6 +86,7 @@ class ReportGenerationService:
             report_type=config.report_type,
             month=config.month,
             collaborator_name=config.collaborator_name,
+            sistema_name=config.sistema_name,
             metric_keys=config.metric_keys,
             board_id=board_info.get("id", ""),
             board_name=board_info.get("name", ""),
@@ -111,5 +115,6 @@ def _report_title(config: ReportGenerationConfig, board_info: dict[str, Any]) ->
         "formal_reviewers": "Relatorio de revisores",
         "management": "Relatorio de gestao",
         "specific_metrics": "Relatorio de metricas especificas",
+        "by_system": f"Relatorio sistema - {config.sistema_name}",
     }.get(config.report_type, "Relatorio")
     return f"{label} | {board_name} | {config.month}"

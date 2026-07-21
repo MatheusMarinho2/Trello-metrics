@@ -97,6 +97,33 @@ REPORT_LAYOUTS: dict[str, dict[str, Any]] = {
         "title_prefix": "Relatorio de metricas especificas",
         "sections": ["overview", "metric_guide", "role_summary", "ai", "dynamic"],
     },
+    "by_system": {
+        "title_prefix": "Relatorio por sistema",
+        "sections": [
+            "overview",
+            "project_summary",
+            "team_summary",
+            "metric_guide",
+            "ai",
+            "flow",
+            "fibonacci",
+            "collaborators",
+            "developers",
+            "requesters",
+            "testers",
+            "projects",
+            "sla",
+            "bottlenecks",
+            "trends",
+            "quality_gates",
+            "risk",
+            "priority",
+            "discipline",
+            "analysis_workflow",
+            "antifraud",
+            "dossier",
+        ],
+    },
 }
 
 
@@ -108,7 +135,9 @@ def allows_section(report_type: str | None, section: str) -> bool:
     layout = report_layout(report_type)
     sections = layout.get("sections") or []
     if "dynamic" in sections:
-        return section in sections or section not in _FIXED_SECTIONS
+        # Metricas especificas: o payload ja veio filtrado por metric_keys.
+        # Permitir qualquer secao presente nos dados (incluindo fixas como projects).
+        return True
     return section in sections
 
 
@@ -116,6 +145,7 @@ _FIXED_SECTIONS = {
     "overview",
     "team_summary",
     "individual_summary",
+    "project_summary",
     "role_summary",
     "metric_guide",
     "ai",

@@ -25,7 +25,8 @@ export type PreviewSection =
   | "trends"
   | "risk"
   | "analysis_workflow"
-  | "antifraud";
+  | "antifraud"
+  | "project_summary";
 
 export const REPORT_PREVIEW_SECTIONS: Record<ReportType, PreviewSection[]> = {
   general: [
@@ -51,6 +52,28 @@ export const REPORT_PREVIEW_SECTIONS: Record<ReportType, PreviewSection[]> = {
     "alerts",
   ],
   individual: ["individual", "role_metrics", "collaborators"],
+  by_system: [
+    "project_summary",
+    "team_summary",
+    "flow",
+    "priority",
+    "dora",
+    "quality_gates",
+    "discipline",
+    "analysis_workflow",
+    "antifraud",
+    "collaborators",
+    "developers",
+    "testers",
+    "requesters",
+    "projects",
+    "sla_dev",
+    "sla_cards",
+    "bottlenecks",
+    "alerts",
+    "trends",
+    "risk",
+  ],
   developers: ["role_metrics", "developers", "flow", "fibonacci", "sla_dev", "quality_gates"],
   requesters: ["role_metrics", "requesters", "projects"],
   testers: ["role_metrics", "testers", "quality_gates"],
@@ -79,6 +102,7 @@ export const METRIC_KEY_SECTIONS: Record<string, PreviewSection[]> = {
   team_summary: ["team_summary"],
   flow: ["flow"],
   developers: ["role_metrics", "developers", "fibonacci", "flow", "quality_gates", "sla_dev"],
+  developer_profiles: ["developers"],
   testers: ["role_metrics", "testers", "quality_gates"],
   requesters: ["role_metrics", "requesters", "projects"],
   reviewers: ["role_metrics", "reviewers", "quality_gates"],
@@ -90,8 +114,14 @@ export const METRIC_KEY_SECTIONS: Record<string, PreviewSection[]> = {
   dora: ["dora"],
   quality_gates: ["quality_gates"],
   discipline: ["discipline"],
+  process_discipline: ["discipline"],
   analysis_workflow: ["analysis_workflow"],
   antifraud: ["antifraud"],
+  projects: ["projects"],
+  collaborators: ["collaborators"],
+  fibonacci_points: ["fibonacci"],
+  risk_board: ["risk"],
+  trends_6m: ["trends"],
 };
 
 export function allowedSectionsForReport(
@@ -121,4 +151,6 @@ export const TAB_DESCRIPTIONS: Record<ReportType, string> = {
   formal_reviewers: "Revisao formal: aprovacoes, retornos ao DEV e escapes detectados no teste.",
   management: "Indicadores para gestao: fluxo, SLA, risco, analises e tendencias.",
   specific_metrics: "Somente as metricas selecionadas abaixo.",
+  by_system:
+    "Relatorio completo de um sistema/projeto: entregas, WIP, arquivados, gargalos e tendencia.",
 };

@@ -75,6 +75,7 @@ class PdfReportBuilder:
             self._team_summary(),
             self._role_summary(),
             self._individual_summary(),
+            self._project_summary(),
             self._overview(),
             self._ai_analysis(),
             self._management_guide(),
@@ -250,6 +251,7 @@ class PdfReportBuilder:
             "requesters": "Resumo de solicitantes",
             "testers": "Resumo de testers",
             "specific_metrics": "Metricas selecionadas",
+            "by_system": "Resumo do sistema",
         }
         title = titles.get(summary.get("scope", ""), "Resumo do relatorio")
         rows = []
@@ -301,6 +303,61 @@ class PdfReportBuilder:
                 [[r.get("title", "-"), r.get("total_human", "-"), r.get("avg_human", "-"),
                   r.get("visits", 0), r.get("cards", 0)] for r in pt],
                 align=["left", "right", "right", "right", "right"],
+            )
+        return html + "</section>"
+
+    def _project_summary(self) -> str:
+        if not self.include("project_summary"):
+            return ""
+        summary = self.metrics.get("project_summary") or {}
+        if not summary:
+            return ""
+        name = summary.get("name") or self.metrics.get("sistema_filter") or "Sistema"
+        lead = summary.get("lead_time") or {}
+        rows = [
+            ["Cards entregues", summary.get("cards_delivered", 0)],
+            ["Cards criados", summary.get("cards_created", 0)],
+            ["Cards arquivados", summary.get("cards_archived", 0)],
+            ["WIP", summary.get("wip_total", 0)],
+            ["Pontos Fibonacci", summary.get("fibonacci_total", 0)],
+            ["Lead time medio", lead.get("avg_human", summary.get("lead_time_avg_human", "-"))],
+            ["Taxa de rework", f"{summary.get('rework_rate_pct', 0)}%"],
+            ["Taxa de qualidade", f"{summary.get('quality_rate_pct', 0)}%"],
+            ["Top gargalo", (summary.get("top_bottleneck") or {}).get("title")
+             or (summary.get("top_bottleneck") or {}).get("group") or "-"],
+        ]
+        html = (
+            f'{self._head(f"Sistema: {esc(name)}", "Andamento no periodo e comparacao com o mes anterior", break_page=False)}'
+            f'{table(["Indicador", "Valor"], rows, align=["left", "right"])}'
+        )
+        comparison = summary.get("comparison") or {}
+        if comparison:
+            cmp_rows = []
+            labels = {
+                "cards_delivered": "Entregues",
+                "cards_archived": "Arquivados",
+                "wip_total": "WIP",
+                "fibonacci_total": "Pontos",
+                "rework_rate_pct": "Rework %",
+            }
+            for key, label in labels.items():
+                item = comparison.get(key) or {}
+                delta = item.get("delta")
+                delta_pct = item.get("delta_pct")
+                delta_txt = f"{delta:+}" if delta is not None else "-"
+                if delta_pct is not None:
+                    delta_txt += f" ({delta_pct:+}%)"
+                cmp_rows.append([
+                    label,
+                    item.get("previous", "-"),
+                    item.get("current", "-"),
+                    delta_txt,
+                ])
+            prev_month = summary.get("previous_month") or "mes anterior"
+            html += subttl(f"Comparacao vs {esc(prev_month)}") + table(
+                ["Indicador", "Anterior", "Atual", "Delta"],
+                cmp_rows,
+                align=["left", "right", "right", "right"],
             )
         return html + "</section>"
 
@@ -812,14 +869,92 @@ class PdfReportBuilder:
 
     def _projects(self) -> str:
         rows = self.metrics.get("projects")
-        if not self.include("projects") or not rows:
+        profiles = self.metrics.get("project_profiles") or []
+        if not self.include("projects") or (not rows and not profiles):
             return ""
-        return (
+        html = (
             f'{self._head("Projetos / Sistemas")}{self._table_intro("projects")}'
             f'{chart_img(self.charts.get("projects"))}'
-            f'{table(["Sistema", "Cards", "Pts normais", "Pts analise", "Top dev"], [[r["name"], r["cards_delivered"], r["fibonacci_normal"], r["fibonacci_analysis"], r.get("top_developer") or "-"] for r in rows], align=["left", "right", "right", "right", "left"])}'
-            "</section>"
         )
+        if rows:
+            html += table(
+                [
+                    "Sistema",
+                    "Entregues",
+                    "WIP",
+                    "Arquivados",
+                    "Pts",
+                    "SLA %",
+                    "Rework %",
+                    "Lead time",
+                    "Gargalo",
+                    "Top dev",
+                ],
+                [
+                    [
+                        r.get("name", "-"),
+                        r.get("cards_delivered", 0),
+                        r.get("wip_total", 0),
+                        r.get("cards_archived", 0),
+                        r.get("fibonacci_total", r.get("fibonacci_normal", 0) + r.get("fibonacci_analysis", 0)),
+                        f"{r.get('sla_compliance_pct', 0)}%",
+                        f"{r.get('rework_rate_pct', 0)}%",
+                        r.get("lead_time_avg_human", "-"),
+                        r.get("top_bottleneck", "-"),
+                        r.get("top_developer") or "-",
+                    ]
+                    for r in rows
+                ],
+                align=["left", "right", "right", "right", "right", "right", "right", "right", "left", "left"],
+            )
+        for profile in profiles:
+            name = profile.get("name") or "Sistema"
+            sla = profile.get("sla") or {}
+            flow = profile.get("flow") or {}
+            lead = flow.get("lead_time") or profile.get("lead_time") or {}
+            bn = (profile.get("bottlenecks") or {}).get("top_bottleneck") or profile.get("top_bottleneck") or {}
+            html += subttl(esc(str(name))) + table(
+                ["Indicador", "Valor"],
+                [
+                    ["Entregues", profile.get("cards_delivered", 0)],
+                    ["Criados", profile.get("cards_created", 0)],
+                    ["Arquivados", profile.get("cards_archived", 0)],
+                    ["WIP", profile.get("wip_total", 0)],
+                    ["Pontos Fibonacci", profile.get("fibonacci_total", 0)],
+                    ["Qualidade", f"{profile.get('quality_rate_pct', 0)}%"],
+                    ["Rework", f"{profile.get('rework_rate_pct', 0)}%"],
+                    ["Lead time medio", lead.get("avg_human", "-")],
+                    ["SLA cumprimento", f"{sla.get('compliance_pct', 0)}%"],
+                    ["SLA estourados", sla.get("breached_count", 0)],
+                    ["SLA em risco agora", sla.get("current_at_risk_count", 0)],
+                    ["Top gargalo", (bn.get("title") or bn.get("group") or "-")],
+                    ["Top desenvolvedor", profile.get("top_developer") or "-"],
+                ],
+                align=["left", "right"],
+            )
+            sla_stages = sla.get("by_stage") or []
+            if sla_stages:
+                html += muted("SLA por etapa") + table(
+                    ["Etapa", "Avaliadas", "Estouradas", "Cumprimento"],
+                    [
+                        [
+                            s.get("title", "-"),
+                            s.get("checks", 0),
+                            s.get("breached_count", 0),
+                            f"{s.get('compliance_pct', 0)}%",
+                        ]
+                        for s in sla_stages[:8]
+                    ],
+                    align=["left", "right", "right", "right"],
+                )
+            wip_stages = flow.get("wip_by_stage") or []
+            if wip_stages:
+                html += muted("WIP por etapa") + table(
+                    ["Etapa", "WIP"],
+                    [[s.get("title", "-"), s.get("count", 0)] for s in wip_stages[:8]],
+                    align=["left", "right"],
+                )
+        return html + "</section>"
 
     def _sla(self) -> str:
         sla = self.metrics.get("sla") or {}

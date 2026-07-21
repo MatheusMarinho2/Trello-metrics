@@ -5,12 +5,13 @@ from rest_framework.generics import RetrieveDestroyAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from reports.models import Collaborator, GeneratedReport
+from reports.models import Collaborator, GeneratedReport, ProjectSystem
 from reports.serializers import (
     CollaboratorSerializer,
     CollaboratorSyncSerializer,
     GeneratedReportDetailSerializer,
     GeneratedReportListSerializer,
+    ProjectSystemSerializer,
     ReportGenerationSerializer,
 )
 from reports.services.export_service import ReportExportService
@@ -19,6 +20,7 @@ from reports.services.report_generation_service import ReportGenerationService
 from reports.services.trello_snapshot_service import (
     sync_collaborators_from_saved_reports,
     sync_collaborators_from_trello,
+    sync_systems_from_trello,
 )
 
 
@@ -134,3 +136,55 @@ class CollaboratorDetailView(APIView):
         collaborator.active = False
         collaborator.save(update_fields=["active", "updated_at"])
         return Response(CollaboratorSerializer(collaborator).data)
+
+
+class ProjectSystemSyncView(APIView):
+    def post(self, request):
+        serializer = CollaboratorSyncSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        try:
+            result = sync_systems_from_trello(
+                board_id=data.get("board_id") or "",
+                api_key=data.get("api_key") or "",
+                token=data.get("token") or "",
+            )
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+        except Exception as exc:
+            return Response({"detail": str(exc)}, status=502)
+
+        systems = result.pop("systems")
+        return Response(
+            {
+                **result,
+                "systems": ProjectSystemSerializer(systems, many=True).data,
+            }
+        )
+
+
+class ProjectSystemListCreateView(APIView):
+    def get(self, request):
+        systems = ProjectSystem.objects.all()
+        return Response(ProjectSystemSerializer(systems, many=True).data)
+
+    def post(self, request):
+        serializer = ProjectSystemSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        system = serializer.save(source="manual")
+        return Response(ProjectSystemSerializer(system).data, status=201)
+
+
+class ProjectSystemDetailView(APIView):
+    def patch(self, request, pk):
+        system = get_object_or_404(ProjectSystem, pk=pk)
+        serializer = ProjectSystemSerializer(system, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        system = serializer.save()
+        return Response(ProjectSystemSerializer(system).data)
+
+    def delete(self, request, pk):
+        system = get_object_or_404(ProjectSystem, pk=pk)
+        system.active = False
+        system.save(update_fields=["active", "updated_at"])
+        return Response(ProjectSystemSerializer(system).data)

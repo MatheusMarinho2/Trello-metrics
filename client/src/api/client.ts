@@ -136,6 +136,31 @@ export async function syncCollaboratorsFromTrello(
   });
 }
 
+export interface SyncSystemsResult {
+  created: number;
+  updated: number;
+  total: number;
+  board_id: string;
+  board_name: string;
+  systems: import("../types/report").ProjectSystem[];
+}
+
+export async function syncSystemsFromTrello(
+  authToken: string,
+  payload: SyncCollaboratorsPayload,
+): Promise<SyncSystemsResult> {
+  return apiFetch("/systems/sync/", authToken, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listSystems(
+  token: string,
+): Promise<import("../types/report").ProjectSystem[]> {
+  return apiFetch("/systems/", token);
+}
+
 export async function listCalendarExceptions(
   token: string,
   month?: string,

@@ -138,6 +138,20 @@ class Collaborator(models.Model):
         return self.name
 
 
+class ProjectSystem(models.Model):
+    name = models.CharField(max_length=160, unique=True)
+    active = models.BooleanField(default=True)
+    source = models.CharField(max_length=40, default="manual")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("name",)
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class WorkCalendarException(models.Model):
     KIND_CHOICES = (
         ("holiday", "Feriado / dia inteiro fora"),
@@ -203,6 +217,7 @@ class GeneratedReport(models.Model):
         ("formal_reviewers", "Revisores"),
         ("management", "Gestao"),
         ("specific_metrics", "Metricas especificas"),
+        ("by_system", "Por sistema"),
     )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -210,6 +225,7 @@ class GeneratedReport(models.Model):
     report_type = models.CharField(max_length=32, choices=REPORT_TYPES)
     month = models.CharField(max_length=7)
     collaborator_name = models.CharField(max_length=160, blank=True)
+    sistema_name = models.CharField(max_length=160, blank=True)
     metric_keys = models.JSONField(default=list, blank=True)
 
     board_id = models.CharField(max_length=80, blank=True)

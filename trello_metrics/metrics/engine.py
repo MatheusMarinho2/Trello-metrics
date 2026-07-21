@@ -23,6 +23,13 @@ from trello_metrics.metrics.aggregators.predictability import (
 )
 from trello_metrics.metrics.aggregators.priority import aggregate_priority_metrics
 from trello_metrics.metrics.aggregators.process_discipline import aggregate_process_discipline
+from trello_metrics.metrics.aggregators.project_profile import (
+    aggregate_project_profiles,
+    aggregate_project_summary,
+    filter_by_sistema,
+    list_systems,
+    projects_rows_from_profiles,
+)
 from trello_metrics.metrics.aggregators.projects import aggregate_projects
 from trello_metrics.metrics.aggregators.quality_gates import aggregate_quality_gates
 from trello_metrics.metrics.aggregators.requesters import aggregate_requesters
@@ -81,7 +88,7 @@ class MetricsEngine:
         if work_calendar is not None:
             self.workflow.work_calendar = work_calendar
 
-    def calculate(self, board: BoardData) -> MetricsResult:
+    def calculate(self, board: BoardData, *, sistema: str | None = None) -> MetricsResult:
         cards = [
             card
             for card in board.cards
@@ -100,7 +107,20 @@ class MetricsEngine:
             [event for event in board.movements if event.card_id in card_by_id]
         )
 
-        timelines = build_card_timelines(cards, events_by_card, self.workflow, self.now)
+        all_timelines = build_card_timelines(cards, events_by_card, self.workflow, self.now)
+        systems = list_systems(all_timelines)
+
+        sistema_filter = (sistema or "").strip() or None
+        if sistema_filter:
+            timelines, cards = filter_by_sistema(all_timelines, cards, sistema_filter)
+            card_by_id = {card.id: card for card in cards}
+            events_by_card = {
+                card_id: events
+                for card_id, events in events_by_card.items()
+                if card_id in card_by_id
+            }
+        else:
+            timelines = all_timelines
 
         card_kinds = {card.id: timeline.kind for card, timeline in zip(cards, timelines)}
 
@@ -122,7 +142,10 @@ class MetricsEngine:
             "movements": movements,
             "cards": card_details,
             "data_quality": data_quality,
+            "systems": systems,
         }
+        if sistema_filter:
+            payload["sistema_filter"] = sistema_filter
         if self.work_calendar is not None:
             payload["calendar_applied"] = self.work_calendar.to_applied_payload()
         elif getattr(self.workflow, "work_calendar", None) is not None:
@@ -162,7 +185,20 @@ class MetricsEngine:
             )
             payload["testers"] = testers
             payload["requesters"] = aggregate_requesters(timelines, period, self.workflow)
-            payload["projects"] = aggregate_projects(timelines, period)
+            project_profiles = aggregate_project_profiles(
+                timelines,
+                cards,
+                self.workflow,
+                period,
+                self.now,
+                self.timezone_name,
+            )
+            payload["project_profiles"] = project_profiles
+            payload["projects"] = (
+                projects_rows_from_profiles(project_profiles)
+                if project_profiles
+                else aggregate_projects(timelines, period)
+            )
             payload["bottlenecks"] = aggregate_bottlenecks(
                 timelines, cards, self.workflow, period
             )
@@ -204,6 +240,9 @@ class MetricsEngine:
                 board.movements,
                 self.workflow,
                 period,
+                focus_card_ids={timeline.card_id for timeline in timelines}
+                if sistema_filter
+                else None,
             )
             payload["member_assignment"] = aggregate_member_assignment(
                 timelines,
@@ -213,6 +252,17 @@ class MetricsEngine:
                 period,
             )
             payload["board_moves"] = aggregate_board_moves(board.board_move_events, period)
+            if sistema_filter:
+                previous_period = periods[-2] if len(periods) >= 2 else None
+                payload["project_summary"] = aggregate_project_summary(
+                    timelines,
+                    cards,
+                    self.workflow,
+                    period,
+                    self.now,
+                    sistema_filter,
+                    previous_period=previous_period,
+                )
 
         return MetricsResult(payload)
 
